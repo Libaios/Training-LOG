@@ -2155,3 +2155,18 @@ body:has(.save-bar) .toast-region {
     grid-template-columns: repeat(5, 1fr);
   }
 }
+
+.working {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--strength);
+}
+
+.working a {
+  font-weight: 500;
+  text-decoration: underline;
+}

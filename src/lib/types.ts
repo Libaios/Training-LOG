@@ -216,3 +216,12 @@ export type CoachRequest = {
   response: string | null
   handled_at: string | null
 }
+
+export type CoachFire = {
+  fired_at: string
+  status: 'ok' | 'error'
+  session_url: string | null
+}
+
+/** Résultat du lancement du coach à la demande. */
+export type FireStatus = 'fired' | 'already_running' | 'not_configured' | 'nothing_pending' | 'error'

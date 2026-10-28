@@ -3,6 +3,7 @@ import { PageHeader } from '../components/Layout'
 import { useStore } from '../lib/store'
 import { errorMessage } from '../lib/supabase'
 import { useToast } from '../lib/ui'
+import type { FireStatus } from '../lib/types'
 import { Icon } from '../components/Icon'
 import config from '../../app.config.json'
 
@@ -23,8 +24,18 @@ const SUGGESTIONS = [
   'Je me sens en forme, on peut monter un peu',
 ]
 
+const FIRE_TOAST: Record<FireStatus, string> = {
+  fired: 'Le coach s’en occupe : réponse dans quelques minutes',
+  already_running: 'Le coach est déjà au travail, il traite aussi ce message',
+  not_configured: 'Message envoyé, le coach le traitera ce soir',
+  nothing_pending: 'Message envoyé',
+  error: 'Message envoyé, le coach le traitera ce soir',
+}
+
+const LIVE_WINDOW_MS = 20 * 60 * 1000
+
 export function Coach() {
-  const { coachNotes, coachRequests, sendCoachRequest, markNotesRead } = useStore()
+  const { coachNotes, coachRequests, coachFires, sendCoachRequest, markNotesRead, reload } = useStore()
   const toast = useToast()
   const [message, setMessage] = useState('')
   const [busy, setBusy] = useState(false)
@@ -43,9 +54,9 @@ export function Coach() {
     if (!message.trim()) return
     setBusy(true)
     try {
-      await sendCoachRequest(message)
+      const status = await sendCoachRequest(message)
       setMessage('')
-      toast('Message envoyé au coach')
+      toast(FIRE_TOAST[status])
     } catch (err) {
       toast(errorMessage(err), 'error')
     } finally {
@@ -56,19 +67,28 @@ export function Coach() {
   const pending = coachRequests.filter((r) => r.status === 'en_attente')
   const answered = coachRequests.filter((r) => r.status === 'traitee').slice(0, 5)
 
+  // Un lancement réussi récent couvre les demandes envoyées avant lui (ou juste après).
+  const lastFire = coachFires.find((f) => f.status === 'ok')
+  const live =
+    lastFire && Date.now() - new Date(lastFire.fired_at).getTime() < LIVE_WINDOW_MS ? lastFire : undefined
+  const isCovered = (createdAt: string) =>
+    !!live && new Date(live.fired_at).getTime() >= new Date(createdAt).getTime() - 120000
+
+  // Tant que le coach travaille, on rafraîchit pour afficher sa réponse dès qu'elle arrive.
+  const working = pending.some((r) => isCovered(r.created_at))
+  useEffect(() => {
+    if (!working) return
+    const id = window.setInterval(() => void reload(), 15000)
+    return () => window.clearInterval(id)
+  }, [working, reload])
+
   return (
     <main className="screen">
       <PageHeader title="Coach" />
       <p className="muted">
-        Chaque soir, le coach relit tes sorties et tes messages, puis réajuste les séances à venir. Pour un réajustement
-        immédiat, écris-lui directement dans Claude : il a accès à ton plan et le modifie en direct.
+        Écris ta demande ici : le coach la traite en quelques minutes et réajuste ton plan. Chaque soir, il relit aussi
+        tes sorties de la journée.
       </p>
-      {config.coachChatUrl && (
-        <a className="btn btn-primary btn-block" href={config.coachChatUrl} target="_blank" rel="noreferrer">
-          <Icon name="message" size={18} />
-          Parler au coach maintenant
-        </a>
-      )}
 
       <form className="coach-form" onSubmit={send}>
         <label className="field">
@@ -102,7 +122,19 @@ export function Coach() {
             {pending.map((r) => (
               <li key={r.id} className="request">
                 <p>{r.message}</p>
-                <span className="muted">Envoyé {when(r.created_at)}, traité ce soir</span>
+                {isCovered(r.created_at) ? (
+                  <span className="working">
+                    <span className="spinner" aria-hidden />
+                    Le coach s’en occupe…
+                    {live?.session_url && (
+                      <a href={live.session_url} target="_blank" rel="noreferrer">
+                        Suivre en direct
+                      </a>
+                    )}
+                  </span>
+                ) : (
+                  <span className="muted">Envoyé {when(r.created_at)}, traité ce soir</span>
+                )}
               </li>
             ))}
           </ul>
@@ -128,6 +160,13 @@ export function Coach() {
           </div>
         )}
       </section>
+
+      {config.coachChatUrl && (
+        <a className="btn btn-text" href={config.coachChatUrl} target="_blank" rel="noreferrer">
+          <Icon name="message" size={18} />
+          Discuter avec le coach dans Claude
+        </a>
+      )}
 
       {answered.length > 0 && (
         <section className="section">
