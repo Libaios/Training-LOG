@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
-import { isConfigured, supabase } from './lib/supabase'
+import { isConfigured, requireAuth, supabase } from './lib/supabase'
 import { DataProvider, useStore } from './lib/store'
 import { useRoute } from './lib/router'
 import { BottomNav, Loading } from './components/Layout'
@@ -23,7 +23,7 @@ export function App() {
   const [access, setAccess] = useState<Access>('checking')
 
   useEffect(() => {
-    if (!isConfigured) return
+    if (!isConfigured || !requireAuth) return
     supabase.auth.getSession().then(({ data }) => setSession(data.session))
     const { data } = supabase.auth.onAuthStateChange((_event, s) => setSession(s))
     return () => data.subscription.unsubscribe()
@@ -50,6 +50,13 @@ export function App() {
   }, [userId])
 
   if (!isConfigured) return <NotConfigured />
+  if (!requireAuth) {
+    return (
+      <DataProvider>
+        <Routes email="" />
+      </DataProvider>
+    )
+  }
   if (session === undefined) return <Loading />
   if (!session) return <Login />
   if (access === 'checking') return <Loading />

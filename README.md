@@ -16,6 +16,10 @@ Petite appli web installable sur téléphone pour suivre la musculation et la co
 | Progrès | 1RM estimé par exercice, records, tonnage hebdo ; km par semaine, allure, records course |
 | Réglages | Exercices, modèles de séance, export CSV pour Excel, mot de passe |
 
+## Accès
+
+Pour l’instant l’appli s’ouvre **sans connexion** (`"requireAuth": false` dans `app.config.json`, migration `0003_open_access.sql`). Pour réactiver les comptes : exécuter le bloc « Retour aux comptes » de cette migration, créer les comptes (étapes 2 et 3 ci-dessous), passer `requireAuth` à `true` et republier.
+
 ## Mise en place
 
 1. Exécuter `supabase/migrations/0001_schema.sql` sur le projet Supabase

@@ -3,6 +3,9 @@ import config from '../../app.config.json'
 
 export const isConfigured = Boolean(config.supabaseUrl && config.supabasePublishableKey)
 
+/** false : l'appli s'ouvre sans écran de connexion (accès ouvert côté base, voir migration 0003). */
+export const requireAuth = config.requireAuth !== false
+
 export const supabase = createClient(
   config.supabaseUrl || 'http://localhost',
   config.supabasePublishableKey || 'not-configured',

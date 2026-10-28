@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { PageHeader } from '../components/Layout'
 import { Icon } from '../components/Icon'
 import { useStore } from '../lib/store'
-import { errorMessage, supabase } from '../lib/supabase'
+import { errorMessage, requireAuth, supabase } from '../lib/supabase'
 import { useToast } from '../lib/ui'
 import { paceOf, plural, todayISO } from '../lib/format'
 import { runTypeLabel, type Exercise } from '../lib/types'
@@ -185,7 +185,7 @@ export function Settings({ email }: { email: string }) {
         </div>
       </section>
 
-      <AccountSection email={email} />
+      {requireAuth && <AccountSection email={email} />}
     </main>
   )
 }

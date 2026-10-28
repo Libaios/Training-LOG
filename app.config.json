@@ -1,4 +1,5 @@
 {
   "supabaseUrl": "https://zmiazoekdvdwoqqdysse.supabase.co",
-  "supabasePublishableKey": "sb_publishable_Funm0nbNw9w6Qvc4hBq0rQ_jRhhCNMO"
+  "supabasePublishableKey": "sb_publishable_Funm0nbNw9w6Qvc4hBq0rQ_jRhhCNMO",
+  "requireAuth": false
 }
