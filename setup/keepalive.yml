@@ -1,0 +1,27 @@
+name: Garder la base active
+
+# Supabase met en pause les projets gratuits après 7 jours sans activité.
+# Un appel tous les 3 jours suffit à l'éviter.
+on:
+  schedule:
+    - cron: '17 6 */3 * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Appeler la base
+        run: |
+          URL=$(jq -r '.supabaseUrl' app.config.json)
+          KEY=$(jq -r '.supabasePublishableKey' app.config.json)
+          if [ -z "$URL" ] || [ -z "$KEY" ]; then
+            echo "Base pas encore configurée, rien à faire."
+            exit 0
+          fi
+          curl --fail --silent --show-error -X POST "$URL/rest/v1/rpc/keepalive" \
+            -H "apikey: $KEY" -H "Content-Type: application/json" -d '{}'
