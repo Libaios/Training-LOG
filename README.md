@@ -1,6 +1,6 @@
 # Carnet d’entraînement
 
-Petite appli web installable sur téléphone pour suivre la musculation et la course : séances, séries, sorties, progression.
+Appli web installable sur téléphone pour préparer un semi-marathon avec un coach IA : allures calculées depuis tes perfs, plan semaine par semaine, séances validées ou déplacées, réajustement chaque soir par le coach (voir `coach/COACH.md`). La partie musculation existe toujours mais est masquée.
 
 - **Appli** : Vite + React, publiée sur GitHub Pages à chaque push sur `main`
 - **Données** : Supabase (Postgres + comptes email / mot de passe)
@@ -10,11 +10,13 @@ Petite appli web installable sur téléphone pour suivre la musculation et la co
 
 | Écran | Contenu |
 |---|---|
-| Accueil | Semaine en cours (bleu = muscu, jaune = course), séances et km vs semaine précédente, dernières activités |
-| Muscu | Historique par mois, saisie série par série (reps, kg, RIR), rappel de la dernière fois, modèles de séance, brouillon conservé si l’appli se ferme |
-| Course | Historique par mois, saisie distance et durée avec allure calculée en direct, type de sortie, FC moyenne |
-| Progrès | 1RM estimé par exercice, records, tonnage hebdo ; km par semaine, allure, records course |
-| Réglages | Exercices, modèles de séance, export CSV pour Excel, mot de passe |
+| Aujourd’hui | Compte à rebours, séance du jour avec allures cibles, semaine en cours (bleu = endurance, jaune = qualité, vert d’eau = sortie longue) |
+| Plan | Toutes les semaines jusqu’à la course, phase et km prévus / faits |
+| Séance | Déroulé, consigne du coach, valider, déplacer, modifier, sauter |
+| Courses | Km par semaine, historique des sorties avec ressenti |
+| Coach | Messages du coach, demandes de réajustement |
+| Profil | Objectif, perfs, allures par zone (VDOT), disponibilités |
+| Muscu, réglages | Masqués de la navigation, accessibles via `#/muscu` et `#/reglages` |
 
 ## Accès
 

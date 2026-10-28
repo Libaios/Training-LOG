@@ -43,9 +43,13 @@ export type Workout = {
 
 export const RUN_TYPES = [
   { value: 'endurance', label: 'Endurance' },
-  { value: 'fractionne', label: 'Fractionné' },
-  { value: 'tempo', label: 'Tempo' },
+  { value: 'loisir', label: 'Run loisir' },
   { value: 'sortie_longue', label: 'Sortie longue' },
+  { value: 'seuil', label: 'Seuil' },
+  { value: 'fractionne', label: 'Fractionné' },
+  { value: 'allure_semi', label: 'Allure semi' },
+  { value: 'cotes', label: 'Côtes' },
+  { value: 'tempo', label: 'Tempo' },
   { value: 'recuperation', label: 'Récupération' },
   { value: 'course', label: 'Compétition' },
 ] as const
@@ -65,6 +69,8 @@ export type Run = {
   avg_hr: number | null
   notes: string | null
   created_at: string
+  planned_session_id: string | null
+  rpe: number | null
 }
 
 /** Saisie d'une séance de muscu avant enregistrement. */
@@ -87,6 +93,125 @@ export type RunDraft = {
   seconds: string
   avgHr: string
   notes: string
+  rpe: string
+  plannedSessionId: string | null
 }
 
 export type TemplateDraftItem = { key: string; exerciseId: string; targetSets: string; targetReps: string }
+
+/* Coach course ---------------------------------------------------------------- */
+
+export type RunnerProfile = {
+  id: number
+  race_name: string
+  race_date: string
+  race_distance_km: number
+  goal_time_sec: number | null
+  sessions_per_week: number
+  /** Jours ISO : 1 = lundi … 7 = dimanche */
+  available_days: number[]
+  long_run_day: number
+  current_weekly_km: number | null
+  longest_recent_run_km: number | null
+  constraints: string | null
+  last_coach_review_at: string | null
+}
+
+export type Performance = {
+  id: string
+  performed_on: string
+  distance_km: number
+  time_sec: number
+  kind: 'course' | 'test' | 'entrainement'
+  notes: string | null
+}
+
+export const SESSION_TYPES = [
+  { value: 'footing', label: 'Footing', tone: 'easy' },
+  { value: 'recuperation', label: 'Récupération', tone: 'easy' },
+  { value: 'sortie_longue', label: 'Sortie longue', tone: 'long' },
+  { value: 'seuil', label: 'Seuil', tone: 'quality' },
+  { value: 'fractionne', label: 'Fractionné', tone: 'quality' },
+  { value: 'allure_semi', label: 'Allure semi', tone: 'quality' },
+  { value: 'cotes', label: 'Côtes', tone: 'quality' },
+  { value: 'test', label: 'Test', tone: 'quality' },
+  { value: 'course', label: 'Course', tone: 'race' },
+] as const
+
+export type SessionType = (typeof SESSION_TYPES)[number]['value']
+export type SessionTone = (typeof SESSION_TYPES)[number]['tone']
+
+export const sessionTypeLabel = (t: SessionType) => SESSION_TYPES.find((x) => x.value === t)?.label ?? t
+export const sessionTone = (t: SessionType): SessionTone => SESSION_TYPES.find((x) => x.value === t)?.tone ?? 'easy'
+
+/** Type de sortie proposé quand on note une séance prévue. */
+export const runTypeForSession: Record<SessionType, RunType> = {
+  footing: 'endurance',
+  recuperation: 'recuperation',
+  sortie_longue: 'sortie_longue',
+  seuil: 'seuil',
+  fractionne: 'fractionne',
+  allure_semi: 'allure_semi',
+  cotes: 'cotes',
+  test: 'course',
+  course: 'course',
+}
+
+export type StructureStep = {
+  label: string
+  repeat?: number
+  distance_km?: number
+  duration_min?: number
+  zone?: 'X' | 'E' | 'S' | 'T' | 'I' | 'R'
+  recovery?: string
+}
+
+export const PHASES = [
+  { value: 'base', label: 'Base' },
+  { value: 'developpement', label: 'Développement' },
+  { value: 'specifique', label: 'Spécifique' },
+  { value: 'affutage', label: 'Affûtage' },
+  { value: 'course', label: 'Course' },
+] as const
+
+export type Phase = (typeof PHASES)[number]['value']
+export const phaseLabel = (p: Phase | null) => PHASES.find((x) => x.value === p)?.label ?? ''
+
+export type SessionStatus = 'prevue' | 'faite' | 'modifiee' | 'sautee'
+
+export type PlanSession = {
+  id: string
+  scheduled_on: string
+  session_type: SessionType
+  title: string
+  description: string | null
+  structure: StructureStep[]
+  target_distance_km: number | null
+  target_duration_min: number | null
+  phase: Phase | null
+  week_number: number | null
+  status: SessionStatus
+  run_id: string | null
+  locked: boolean
+  source: 'coach' | 'utilisateur'
+  coach_comment: string | null
+  updated_at: string
+}
+
+export type CoachNote = {
+  id: string
+  created_at: string
+  kind: 'plan' | 'bilan' | 'reprogrammation' | 'conseil'
+  title: string
+  body: string
+  read: boolean
+}
+
+export type CoachRequest = {
+  id: string
+  created_at: string
+  message: string
+  status: 'en_attente' | 'traitee'
+  response: string | null
+  handled_at: string | null
+}

@@ -3,27 +3,37 @@ import { Icon } from './Icon'
 import { navigate } from '../lib/router'
 
 const TABS = [
-  { path: '', label: 'Accueil', icon: 'home' },
-  { path: 'muscu', label: 'Muscu', icon: 'dumbbell' },
-  { path: 'course', label: 'Course', icon: 'route' },
-  { path: 'progres', label: 'Progrès', icon: 'chart' },
-  { path: 'reglages', label: 'Réglages', icon: 'sliders' },
+  { path: '', label: 'Aujourd’hui', icon: 'home' },
+  { path: 'plan', label: 'Plan', icon: 'calendar' },
+  { path: 'course', label: 'Courses', icon: 'route' },
+  { path: 'coach', label: 'Coach', icon: 'message' },
+  { path: 'profil', label: 'Profil', icon: 'user' },
 ]
 
-export function BottomNav({ active }: { active: string }) {
+export function BottomNav({ active, badge }: { active: string; badge?: { path: string; count: number } }) {
   return (
     <nav className="bottom-nav" aria-label="Navigation principale">
-      {TABS.map((t) => (
-        <a
-          key={t.label}
-          href={`#/${t.path}`}
-          className={`tab tab-${t.path || 'accueil'}`}
-          aria-current={active === t.path ? 'page' : undefined}
-        >
-          <Icon name={t.icon} />
-          <span>{t.label}</span>
-        </a>
-      ))}
+      {TABS.map((t) => {
+        const count = badge && badge.path === t.path ? badge.count : 0
+        return (
+          <a
+            key={t.label}
+            href={`#/${t.path}`}
+            className={`tab tab-${t.path || 'accueil'}`}
+            aria-current={active === t.path ? 'page' : undefined}
+          >
+            <span className="tab-icon">
+              <Icon name={t.icon} />
+              {count > 0 && (
+                <span className="badge" aria-label={`${count} nouveau${count > 1 ? 'x' : ''}`}>
+                  {count}
+                </span>
+              )}
+            </span>
+            <span>{t.label}</span>
+          </a>
+        )
+      })}
     </nav>
   )
 }

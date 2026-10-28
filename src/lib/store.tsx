@@ -2,9 +2,15 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { supabase } from './supabase'
 import { parseDecimal, parseIntOrNull } from './format'
 import type {
+  CoachNote,
+  CoachRequest,
   Exercise,
+  Performance,
+  PlanSession,
   Run,
   RunDraft,
+  RunnerProfile,
+  SessionStatus,
   Template,
   TemplateDraftItem,
   TemplateItem,
@@ -18,6 +24,41 @@ type Data = {
   templates: Template[]
   workouts: Workout[]
   runs: Run[]
+  profile: RunnerProfile | null
+  performances: Performance[]
+  plan: PlanSession[]
+  coachNotes: CoachNote[]
+  coachRequests: CoachRequest[]
+}
+
+export type SessionPatch = Partial<
+  Pick<
+    PlanSession,
+    | 'scheduled_on'
+    | 'session_type'
+    | 'title'
+    | 'description'
+    | 'structure'
+    | 'target_distance_km'
+    | 'target_duration_min'
+    | 'phase'
+    | 'week_number'
+    | 'status'
+    | 'locked'
+    | 'coach_comment'
+  >
+>
+
+const EMPTY: Data = {
+  exercises: [],
+  templates: [],
+  workouts: [],
+  runs: [],
+  profile: null,
+  performances: [],
+  plan: [],
+  coachNotes: [],
+  coachRequests: [],
 }
 
 type Store = Data & {
@@ -33,6 +74,15 @@ type Store = Data & {
   updateExercise: (id: string, patch: Partial<Pick<Exercise, 'name' | 'muscle_group' | 'archived'>>) => Promise<void>
   saveTemplate: (name: string, items: TemplateDraftItem[], id?: string) => Promise<string>
   deleteTemplate: (id: string) => Promise<void>
+  sessionById: Map<string, PlanSession>
+  saveProfile: (patch: Partial<Omit<RunnerProfile, 'id'>>) => Promise<void>
+  addPerformance: (perf: Omit<Performance, 'id'>) => Promise<void>
+  deletePerformance: (id: string) => Promise<void>
+  saveSession: (patch: SessionPatch, id?: string) => Promise<string>
+  setSessionStatus: (id: string, status: SessionStatus) => Promise<void>
+  deleteSession: (id: string) => Promise<void>
+  sendCoachRequest: (message: string) => Promise<void>
+  markNotesRead: (ids: string[]) => Promise<void>
 }
 
 const StoreContext = createContext<Store | null>(null)
@@ -71,11 +121,38 @@ async function loadAll(): Promise<Data> {
       ['position', true],
       ['set_number', true],
     ]),
-    fetchAll<Run>('runs', 'id,performed_on,run_type,distance_km,duration_sec,avg_hr,notes,created_at', [
-      ['performed_on', false],
-      ['created_at', false],
-    ]),
+    fetchAll<Run>(
+      'runs',
+      'id,performed_on,run_type,distance_km,duration_sec,avg_hr,notes,created_at,planned_session_id,rpe',
+      [
+        ['performed_on', false],
+        ['created_at', false],
+      ],
+    ),
   ])
+
+  const [profileRes, performances, plan, coachNotes, coachRequests] = await Promise.all([
+    supabase
+      .from('runner_profile')
+      .select(
+        'id,race_name,race_date,race_distance_km,goal_time_sec,sessions_per_week,available_days,long_run_day,current_weekly_km,longest_recent_run_km,constraints,last_coach_review_at',
+      )
+      .eq('id', 1)
+      .maybeSingle(),
+    fetchAll<Performance>('performances', 'id,performed_on,distance_km,time_sec,kind,notes', [['performed_on', false]]),
+    fetchAll<PlanSession>(
+      'plan_sessions',
+      'id,scheduled_on,session_type,title,description,structure,target_distance_km,target_duration_min,phase,week_number,status,run_id,locked,source,coach_comment,updated_at',
+      [
+        ['scheduled_on', true],
+        ['created_at', true],
+      ],
+    ),
+    fetchAll<CoachNote>('coach_notes', 'id,created_at,kind,title,body,read', [['created_at', false]]),
+    fetchAll<CoachRequest>('coach_requests', 'id,created_at,message,status,response,handled_at', [['created_at', false]]),
+  ])
+  if (profileRes.error) throw profileRes.error
+  const rawProfile = profileRes.data as RunnerProfile | null
 
   const setsByWorkout = new Map<string, WorkoutSet[]>()
   for (const s of sets) {
@@ -95,6 +172,22 @@ async function loadAll(): Promise<Data> {
     templates: templates.map((t) => ({ ...t, items: itemsByTemplate.get(t.id) ?? [] })),
     workouts: workoutRows.map((w) => ({ ...w, sets: setsByWorkout.get(w.id) ?? [] })),
     runs: runs.map((r) => ({ ...r, distance_km: num(r.distance_km) })),
+    profile: rawProfile
+      ? {
+          ...rawProfile,
+          race_distance_km: num(rawProfile.race_distance_km),
+          current_weekly_km: rawProfile.current_weekly_km === null ? null : num(rawProfile.current_weekly_km),
+          longest_recent_run_km: rawProfile.longest_recent_run_km === null ? null : num(rawProfile.longest_recent_run_km),
+        }
+      : null,
+    performances: performances.map((p) => ({ ...p, distance_km: num(p.distance_km) })),
+    plan: plan.map((p) => ({
+      ...p,
+      structure: Array.isArray(p.structure) ? p.structure : [],
+      target_distance_km: p.target_distance_km === null ? null : num(p.target_distance_km),
+    })),
+    coachNotes,
+    coachRequests,
   }
 }
 
@@ -127,7 +220,7 @@ export function runDraftDuration(d: RunDraft): number {
 }
 
 export function DataProvider({ children }: { children: ReactNode }) {
-  const [data, setData] = useState<Data>({ exercises: [], templates: [], workouts: [], runs: [] })
+  const [data, setData] = useState<Data>(EMPTY)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -189,6 +282,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   const saveRun = useCallback(
     async (draft: RunDraft, id?: string) => {
+      const previous = id ? data.runs.find((r) => r.id === id) : undefined
       const payload = {
         performed_on: draft.performedOn,
         run_type: draft.runType,
@@ -196,6 +290,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
         duration_sec: Math.round(runDraftDuration(draft)),
         avg_hr: parseIntOrNull(draft.avgHr),
         notes: draft.notes.trim() || null,
+        rpe: parseIntOrNull(draft.rpe),
+        planned_session_id: draft.plannedSessionId,
       }
       let runId = id
       if (runId) {
@@ -206,19 +302,42 @@ export function DataProvider({ children }: { children: ReactNode }) {
         if (e) throw e
         runId = (inserted as { id: string }).id
       }
+      // La séance qui n'est plus liée redevient « prévue », la nouvelle passe « faite ».
+      if (previous?.planned_session_id && previous.planned_session_id !== draft.plannedSessionId) {
+        const { error: e } = await supabase
+          .from('plan_sessions')
+          .update({ status: 'prevue', run_id: null })
+          .eq('id', previous.planned_session_id)
+        if (e) throw e
+      }
+      if (draft.plannedSessionId) {
+        const { error: e } = await supabase
+          .from('plan_sessions')
+          .update({ status: 'faite', run_id: runId })
+          .eq('id', draft.plannedSessionId)
+        if (e) throw e
+      }
       await reload()
       return runId!
     },
-    [reload],
+    [reload, data.runs],
   )
 
   const deleteRun = useCallback(
     async (id: string) => {
+      const run = data.runs.find((r) => r.id === id)
+      if (run?.planned_session_id) {
+        const { error: e1 } = await supabase
+          .from('plan_sessions')
+          .update({ status: 'prevue', run_id: null })
+          .eq('id', run.planned_session_id)
+        if (e1) throw e1
+      }
       const { error: e } = await supabase.from('runs').delete().eq('id', id)
       if (e) throw e
       await reload()
     },
-    [reload],
+    [reload, data.runs],
   )
 
   const addExercise = useCallback(
@@ -288,7 +407,94 @@ export function DataProvider({ children }: { children: ReactNode }) {
     [reload],
   )
 
+  const saveProfile = useCallback(
+    async (patch: Partial<Omit<RunnerProfile, 'id'>>) => {
+      const { error: e } = await supabase.from('runner_profile').update(patch).eq('id', 1)
+      if (e) throw e
+      await reload()
+    },
+    [reload],
+  )
+
+  const addPerformance = useCallback(
+    async (perf: Omit<Performance, 'id'>) => {
+      const { error: e } = await supabase.from('performances').insert(perf)
+      if (e) throw e
+      await reload()
+    },
+    [reload],
+  )
+
+  const deletePerformance = useCallback(
+    async (id: string) => {
+      const { error: e } = await supabase.from('performances').delete().eq('id', id)
+      if (e) throw e
+      await reload()
+    },
+    [reload],
+  )
+
+  /** Modifier ou créer une séance à la main : elle est verrouillée pour le coach. */
+  const saveSession = useCallback(
+    async (patch: SessionPatch, id?: string) => {
+      let sessionId = id
+      if (sessionId) {
+        const { error: e } = await supabase.from('plan_sessions').update(patch).eq('id', sessionId)
+        if (e) throw e
+      } else {
+        const { data: inserted, error: e } = await supabase
+          .from('plan_sessions')
+          .insert({ ...patch, source: 'utilisateur', locked: true })
+          .select('id')
+          .single()
+        if (e) throw e
+        sessionId = (inserted as { id: string }).id
+      }
+      await reload()
+      return sessionId!
+    },
+    [reload],
+  )
+
+  const setSessionStatus = useCallback(
+    async (id: string, status: SessionStatus) => {
+      const { error: e } = await supabase.from('plan_sessions').update({ status }).eq('id', id)
+      if (e) throw e
+      await reload()
+    },
+    [reload],
+  )
+
+  const deleteSession = useCallback(
+    async (id: string) => {
+      const { error: e } = await supabase.from('plan_sessions').delete().eq('id', id)
+      if (e) throw e
+      await reload()
+    },
+    [reload],
+  )
+
+  const sendCoachRequest = useCallback(
+    async (message: string) => {
+      const { error: e } = await supabase.from('coach_requests').insert({ message: message.trim() })
+      if (e) throw e
+      await reload()
+    },
+    [reload],
+  )
+
+  const markNotesRead = useCallback(
+    async (ids: string[]) => {
+      if (!ids.length) return
+      const { error: e } = await supabase.from('coach_notes').update({ read: true }).in('id', ids)
+      if (e) throw e
+      await reload()
+    },
+    [reload],
+  )
+
   const exerciseById = useMemo(() => new Map(data.exercises.map((e) => [e.id, e])), [data.exercises])
+  const sessionById = useMemo(() => new Map(data.plan.map((p) => [p.id, p])), [data.plan])
 
   const value: Store = {
     ...data,
@@ -304,6 +510,15 @@ export function DataProvider({ children }: { children: ReactNode }) {
     updateExercise,
     saveTemplate,
     deleteTemplate,
+    sessionById,
+    saveProfile,
+    addPerformance,
+    deletePerformance,
+    saveSession,
+    setSessionStatus,
+    deleteSession,
+    sendCoachRequest,
+    markNotesRead,
   }
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>

@@ -5,16 +5,21 @@ import { DataProvider, useStore } from './lib/store'
 import { useRoute } from './lib/router'
 import { BottomNav, Loading } from './components/Layout'
 import { Login, NoAccess, NotConfigured } from './screens/Login'
-import { Home } from './screens/Home'
-import { WorkoutList } from './screens/WorkoutList'
-import { WorkoutEditor } from './screens/WorkoutEditor'
+import { Today } from './screens/Today'
+import { Plan } from './screens/Plan'
+import { SessionDetail } from './screens/SessionDetail'
+import { Coach } from './screens/Coach'
+import { Profile } from './screens/Profile'
 import { RunList } from './screens/RunList'
 import { RunEditor } from './screens/RunEditor'
-import { Settings } from './screens/Settings'
-import { TemplateEditor } from './screens/TemplateEditor'
 
 // Les graphiques (plus lourds) ne sont chargés qu'à l'ouverture de l'onglet Progrès.
 const Progress = lazy(() => import('./screens/Progress').then((m) => ({ default: m.Progress })))
+// Partie muscu et réglages, masquée pour l'instant : chargée seulement si on l'ouvre.
+const WorkoutList = lazy(() => import('./screens/WorkoutList').then((m) => ({ default: m.WorkoutList })))
+const WorkoutEditor = lazy(() => import('./screens/WorkoutEditor').then((m) => ({ default: m.WorkoutEditor })))
+const Settings = lazy(() => import('./screens/Settings').then((m) => ({ default: m.Settings })))
+const TemplateEditor = lazy(() => import('./screens/TemplateEditor').then((m) => ({ default: m.TemplateEditor })))
 
 type Access = 'checking' | 'member' | 'denied'
 
@@ -71,16 +76,30 @@ export function App() {
 
 function Routes({ email }: { email: string }) {
   const [section = '', sub, extra] = useRoute()
-  const { loading, error, reload } = useStore()
+  const { loading, error, reload, coachNotes } = useStore()
 
   const editing =
-    ((section === 'muscu' || section === 'course') && sub !== undefined) || (section === 'reglages' && sub === 'modele')
+    ((section === 'muscu' || section === 'course') && sub !== undefined) ||
+    (section === 'reglages' && sub === 'modele') ||
+    section === 'seance'
 
   let screen
-  if (section === 'muscu') {
-    screen = sub ? <WorkoutEditor key={sub} id={sub === 'nouvelle' ? undefined : sub} /> : <WorkoutList />
+  if (section === 'plan') {
+    screen = <Plan />
+  } else if (section === 'seance') {
+    screen = <SessionDetail key={sub} id={sub === 'nouvelle' ? undefined : sub} />
   } else if (section === 'course') {
-    screen = sub ? <RunEditor key={sub} id={sub === 'nouvelle' ? undefined : sub} /> : <RunList />
+    screen = sub ? (
+      <RunEditor key={`${sub}-${extra ?? ''}`} id={sub === 'nouvelle' ? undefined : sub} sessionId={sub === 'nouvelle' ? extra : undefined} />
+    ) : (
+      <RunList />
+    )
+  } else if (section === 'coach') {
+    screen = <Coach />
+  } else if (section === 'profil') {
+    screen = <Profile />
+  } else if (section === 'muscu') {
+    screen = sub ? <WorkoutEditor key={sub} id={sub === 'nouvelle' ? undefined : sub} /> : <WorkoutList />
   } else if (section === 'progres') {
     screen = <Progress />
   } else if (section === 'reglages') {
@@ -91,8 +110,11 @@ function Routes({ email }: { email: string }) {
         <Settings email={email} />
       )
   } else {
-    screen = <Home />
+    screen = <Today />
   }
+
+  const navActive = section === 'seance' ? 'plan' : section
+  const unread = coachNotes.filter((n) => !n.read).length
 
   return (
     <div className={`app${editing ? ' is-editing' : ''}`}>
@@ -105,7 +127,7 @@ function Routes({ email }: { email: string }) {
         </div>
       )}
       {loading ? <Loading /> : <Suspense fallback={<Loading />}>{screen}</Suspense>}
-      {!editing && <BottomNav active={section} />}
+      {!editing && <BottomNav active={navActive} badge={{ path: 'coach', count: unread }} />}
     </div>
   )
 }

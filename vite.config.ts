@@ -7,6 +7,7 @@ const base = '/Training-LOG/'
 
 export default defineConfig({
   base,
+  build: { chunkSizeWarningLimit: 600 },
   plugins: [
     react(),
     VitePWA({
