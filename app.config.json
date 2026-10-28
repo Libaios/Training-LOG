@@ -1,5 +1,6 @@
 {
   "supabaseUrl": "https://zmiazoekdvdwoqqdysse.supabase.co",
   "supabasePublishableKey": "sb_publishable_Funm0nbNw9w6Qvc4hBq0rQ_jRhhCNMO",
-  "requireAuth": false
+  "requireAuth": false,
+  "coachChatUrl": "https://claude.ai/code/session_01LNRapFAap7dgJweWQZVgxz"
 }

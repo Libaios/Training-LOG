@@ -3,6 +3,8 @@ import { PageHeader } from '../components/Layout'
 import { useStore } from '../lib/store'
 import { errorMessage } from '../lib/supabase'
 import { useToast } from '../lib/ui'
+import { Icon } from '../components/Icon'
+import config from '../../app.config.json'
 
 const KIND_LABEL = {
   plan: 'Plan',
@@ -58,9 +60,15 @@ export function Coach() {
     <main className="screen">
       <PageHeader title="Coach" />
       <p className="muted">
-        Chaque soir, le coach relit tes sorties et tes messages, puis réajuste les séances à venir. Pour une réponse
-        immédiate, écris-lui directement dans Claude, dans le projet de l’appli.
+        Chaque soir, le coach relit tes sorties et tes messages, puis réajuste les séances à venir. Pour un réajustement
+        immédiat, écris-lui directement dans Claude : il a accès à ton plan et le modifie en direct.
       </p>
+      {config.coachChatUrl && (
+        <a className="btn btn-primary btn-block" href={config.coachChatUrl} target="_blank" rel="noreferrer">
+          <Icon name="message" size={18} />
+          Parler au coach maintenant
+        </a>
+      )}
 
       <form className="coach-form" onSubmit={send}>
         <label className="field">
