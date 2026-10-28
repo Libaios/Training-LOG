@@ -123,7 +123,7 @@ async function loadAll(): Promise<Data> {
     ]),
     fetchAll<Run>(
       'runs',
-      'id,performed_on,run_type,distance_km,duration_sec,avg_hr,notes,created_at,planned_session_id,rpe',
+      'id,performed_on,run_type,distance_km,duration_sec,avg_hr,notes,created_at,planned_session_id,rpe,source',
       [
         ['performed_on', false],
         ['created_at', false],

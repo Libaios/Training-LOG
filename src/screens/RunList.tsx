@@ -73,6 +73,7 @@ export function RunList() {
                           {r.planned_session_id && sessionById.get(r.planned_session_id) && (
                             <span className="tag tag-plan">Plan</span>
                           )}
+                          {r.source === 'strava' && <span className="tag tag-strava">Strava</span>}
                         </span>
                         <span className="row-sub">
                           {fmtClock(r.duration_sec)}, {fmtPace(paceOf(r.distance_km, r.duration_sec))} /km

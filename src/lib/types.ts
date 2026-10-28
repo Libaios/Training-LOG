@@ -71,6 +71,7 @@ export type Run = {
   created_at: string
   planned_session_id: string | null
   rpe: number | null
+  source: 'manuel' | 'strava'
 }
 
 /** Saisie d'une séance de muscu avant enregistrement. */

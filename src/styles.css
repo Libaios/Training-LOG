@@ -2115,6 +2115,12 @@ body:has(.save-bar) .toast-region {
   color: var(--strength);
 }
 
+.tag-strava {
+  background: var(--surface-2);
+  color: var(--muted);
+  border: 1px solid var(--line);
+}
+
 .chart-placeholder {
   height: 198px;
 }
