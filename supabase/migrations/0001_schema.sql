@@ -124,7 +124,14 @@ create policy "Membres : séries" on public.workout_sets for all to authenticate
 create policy "Membres : courses" on public.runs for all to authenticated
   using ((select public.is_member())) with check ((select public.is_member()));
 
--- Ping anti-pause (appelé tous les 3 jours par GitHub Actions) ------------
+-- Droits explicites : rien pour les visiteurs anonymes, le nécessaire pour les comptes connectés.
+revoke all on public.members, public.exercises, public.templates, public.template_exercises,
+  public.workouts, public.workout_sets, public.runs from anon;
+grant select on public.members to authenticated;
+grant select, insert, update, delete on public.exercises, public.templates, public.template_exercises,
+  public.workouts, public.workout_sets, public.runs to authenticated;
+
+-- Ping anti-pause (appelable sans compte, ne lit aucune donnée) ------------
 create or replace function public.keepalive()
 returns timestamptz
 language sql
