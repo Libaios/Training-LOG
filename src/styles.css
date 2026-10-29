@@ -2449,3 +2449,16 @@ body:has(.save-bar) .toast-region {
   gap: 6px;
   padding-left: 0;
 }
+
+/* Allure dans les lignes du plan */
+.row-pace {
+  font-size: 14px;
+  color: var(--tone-text);
+}
+
+.row-pace strong {
+  font-family: var(--font-cond);
+  font-size: 18px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}

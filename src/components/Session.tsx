@@ -1,6 +1,6 @@
 import { fmtRange, sessionTarget, useCoach } from '../lib/coach'
 import { zoneLabel, type Zone } from '../lib/pace'
-import { fmtDate, fmtWeekday, fromISODate } from '../lib/format'
+import { fmtDate, fmtPace, fmtWeekday, fromISODate, paceOf } from '../lib/format'
 import { useStore } from '../lib/store'
 import { SESSION_KIND, sessionTone, sessionTypeLabel, type PlanSession, type StructureStep } from '../lib/types'
 import { Icon } from './Icon'
@@ -108,9 +108,12 @@ export function SessionSteps({ steps }: { steps: StructureStep[] }) {
 /** Ligne de séance dans une liste (plan) : le jour seulement s'il est fixé. */
 export function SessionRow({ session }: { session: PlanSession }) {
   const { runs } = useStore()
+  const { paces } = useCoach()
   const target = sessionTarget(session)
   const tone = sessionTone(session.session_type)
   const run = session.run_id ? runs.find((r) => r.id === session.run_id) : undefined
+  const step = keyStep(session.structure, tone === 'quality' || tone === 'race')
+  const quality = step && QUALITY_ZONES.includes(step.zone) && session.structure.length > 1
   return (
     <a className={`list-row session-row is-${session.status}`} href={`#/seance/${session.id}`}>
       {session.flexible ? (
@@ -125,10 +128,16 @@ export function SessionRow({ session }: { session: PlanSession }) {
         <span className="row-title">{session.title}</span>
         <span className="row-sub">
           {run
-            ? `Faite ${fmtDate(run.performed_on).toLowerCase()}`
+            ? `Faite ${fmtDate(run.performed_on).toLowerCase()}, ${fmtPace(paceOf(run.distance_km, run.duration_sec))} /km`
             : `${sessionTypeLabel(session.session_type)}${target ? `, ${target}` : ''}`}
           {session.locked ? ', modifiée par toi' : ''}
         </span>
+        {!run && session.status !== 'sautee' && step && (
+          <span className={`row-pace tone-${tone}`}>
+            {quality && <span>{zoneLabel(step.zone)} </span>}
+            <strong>{paces ? `${fmtRange(paces[step.zone])} /km` : ZONE_FEEL[step.zone]}</strong>
+          </span>
+        )}
       </span>
       <StatusMark session={session} />
     </a>
