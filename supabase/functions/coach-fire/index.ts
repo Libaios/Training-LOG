@@ -9,7 +9,8 @@
 //    les messages handler = 'session' (ou pour tous les messages sans clé API). File d'attente :
 //    une session encore en cours (finished_at vide, qui a pris un message dans les 3 min après son
 //    lancement) les prendra avant de finir ; une session qui n'a rien pris en 3 min, ou qui tourne depuis
-//    plus de 6 min, ne bloque plus. Message abandonné repris après 10 min.
+//    plus de 6 min, ne bloque plus. Message abandonné repris après 10 min. Une session qui s'arrête sans
+//    répondre est relayée par l'API (mode relais, api.ts) ; trois lancements au plus par message.
 // Seuls les comptes connectés autorisés peuvent créer des messages ; sans message en attente, rien ne part.
 // Global fourni par le runtime Supabase (évite de dépendre de jsr.io au déploiement).
 declare const EdgeRuntime: { waitUntil(promise: Promise<unknown>): void }
@@ -23,6 +24,7 @@ const ALIVE_MS = 6 * 60 * 1000
 const STARTUP_MS = 3 * 60 * 1000
 const MIN_GAP_MS = 20 * 1000
 const MAX_PER_HOUR = 20
+const MAX_SESSION_TRIES = 3
 const DAILY_LIMIT = Number(Deno.env.get('COACH_DAILY_LIMIT') || 30)
 
 const cors = {
@@ -72,8 +74,9 @@ async function viaSession(db: Db, onlySession: boolean): Promise<string> {
   // Messages qui attendent une session : pas encore pris en charge, ou pris par une session qui a lâché.
   let query = db
     .from('coach_requests')
-    .select('message')
+    .select('id,message,session_tries')
     .eq('status', 'en_attente')
+    .lt('session_tries', MAX_SESSION_TRIES)
     .or(`claimed_at.is.null,claimed_at.lt.${staleIso}`)
   if (onlySession) query = query.eq('handler', 'session')
   const { data: pending, error: pendingError } = await query.order('created_at', { ascending: true }).limit(20)
@@ -132,6 +135,8 @@ async function viaSession(db: Db, onlySession: boolean): Promise<string> {
   }
 
   await db.from('coach_fire_log').insert({ status: 'ok', session_url: body.claude_code_session_url ?? null })
+  for (const r of pending! as { id: string; session_tries: number }[])
+    await db.from('coach_requests').update({ session_tries: r.session_tries + 1 }).eq('id', r.id)
   return 'fired'
 }
 

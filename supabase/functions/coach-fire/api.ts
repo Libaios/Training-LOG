@@ -92,7 +92,8 @@ const BUDGET_MS = 125 * 1000 // la fonction a 150 s au plus
 const MAX_TURNS = 8
 const MAX_ATTEMPTS = 2 // ensuite le message est laissé à la session Claude Code
 
-export type Claimed = { id: string; created_at: string; message: string; session_id: string | null }
+/** relay : la session longue s'est arrêtée sans répondre, l'API reprend le message (mode relais). */
+export type Claimed = { id: string; created_at: string; message: string; session_id: string | null; relay?: boolean }
 export type ApiOutcome = { answered: number; transmitted: number; limited: boolean; failed: number }
 
 // Consignes : version courte de coach/COACH.md (sections 1, 2, 4 et 5), pour garder chaque appel léger.
@@ -119,6 +120,8 @@ Comment traiter le message
 7. Tu traites toi-même ce qui est rapide : une question sur une séance ou une allure, un doute, la motivation, un petit ajustement d’une ou deux séances, une douleur (réponse prudente tout de suite).
 8. Appelle confier_a_la_session_longue, sans rien modifier ni répondre, dès qu’il faut vraiment réfléchir : changer plus de deux séances ou une semaine entière, revoir l’objectif ou la structure du plan, analyser la progression en détail, question en plusieurs parties, ou message qui parle, même en partie, de l’appli elle-même (écran, affichage, bouton, bug, nouvelle fonction). Une session plus longue répond dans les minutes qui suivent.
 Ne renvoie jamais le coureur vers une autre conversation ou un autre outil.`
+
+const RELAY = `MODE RELAIS : la session longue devait traiter ce message mais s’est arrêtée sans répondre. Le plan a peut-être déjà été modifié en partie : regarde les consignes des séances dans le dossier et pars de là. Réponds toi-même à tout ce qui concerne l’entraînement, même si c’est long (tu peux modifier plusieurs séances ou semaines). Si le message demande une modification de l’appli, dis en une phrase qu’elle n’a pas pu être faite cette fois et qu’il peut la redemander. La session longue n’est pas disponible : termine par repondre.`
 
 // Outils -------------------------------------------------------------------------------------
 const TYPES = ['footing', 'recuperation', 'sortie_longue', 'seuil', 'fractionne', 'allure_semi', 'cotes', 'test', 'course']
@@ -487,7 +490,7 @@ type Result = { kind: 'repondu'; reponse: string; titre: string | null; note?: {
 
 /** Traite un message : dossier, échanges avec le modèle et ses outils, jusqu'à repondre ou transmettre. */
 async function handleOne(db: Db, apiKey: string, model: string, request: Claimed, deadline: number, usage: Usage): Promise<Result> {
-  if (model === MODEL) {
+  if (model === MODEL && !request.relay) {
     try {
       const t = await triage(db, apiKey, request, deadline)
       usage.extraUsd += t.costUsd
@@ -507,9 +510,10 @@ async function handleOne(db: Db, apiKey: string, model: string, request: Claimed
       : '\n\n(La séance commentée n’existe plus.)'
   }
 
-  const system = [
-    { type: 'text', text: INSTRUCTIONS },
-  ]
+  const system = [{ type: 'text', text: request.relay ? `${INSTRUCTIONS}\n\n${RELAY}` : INSTRUCTIONS }]
+  // En relais, plus de session longue à qui confier, et la réflexion préalable reste permise.
+  const tools = request.relay ? TOOLS.filter((t) => t.name !== 'confier_a_la_session_longue') : TOOLS
+  const thinking = request.relay ? {} : thinkingFor(model)
   const messages: { role: string; content: unknown }[] = [
     {
       role: 'user',
@@ -527,7 +531,7 @@ async function handleOne(db: Db, apiKey: string, model: string, request: Claimed
   for (let turn = 0; turn < MAX_TURNS; turn++) {
     const left = deadline - Date.now()
     if (left < 10000) throw new Error('temps écoulé')
-    const res = await callApi(apiKey, { model, max_tokens: 8000, system, tools: TOOLS, messages, output_config: { effort: EFFORT }, ...thinkingFor(model) }, left)
+    const res = await callApi(apiKey, { model, max_tokens: 8000, system, tools, messages, output_config: { effort: EFFORT }, ...thinking }, left)
     usage.input += res.usage?.input_tokens ?? 0
     usage.output += res.usage?.output_tokens ?? 0
     usage.cacheRead += res.usage?.cache_read_input_tokens ?? 0
@@ -590,19 +594,45 @@ async function handleOne(db: Db, apiKey: string, model: string, request: Claimed
 }
 
 // File d'attente -------------------------------------------------------------------------------
-/** Prend en charge les messages qui n'ont pas encore été vus par l'API (ou abandonnés depuis 10 min). */
+/**
+ * Prend en charge les messages pas encore vus par l'API (ou abandonnés depuis 10 min), et, en mode relais,
+ * ceux que la session longue n'a pas réussi à traiter : pris en charge il y a plus de 10 min sans réponse,
+ * ou jamais pris en charge après deux lancements.
+ */
 export async function claimForApi(db: Db): Promise<Claimed[]> {
+  const now = new Date().toISOString()
   const stale = new Date(Date.now() - STALE_MS).toISOString()
-  const { data, error } = await db
-    .from('coach_requests')
-    .update({ claimed_at: new Date().toISOString() })
-    .eq('status', 'en_attente')
-    .is('handler', null)
-    .or(`claimed_at.is.null,claimed_at.lt.${stale}`)
-    .select('id,created_at,message,session_id')
-  if (error) throw new Error(error.message)
-  return ((data ?? []) as Claimed[]).sort((a, b) => a.created_at.localeCompare(b.created_at))
+  const [fresh, relay] = await Promise.all([
+    db
+      .from('coach_requests')
+      .update({ claimed_at: now })
+      .eq('status', 'en_attente')
+      .is('handler', null)
+      .or(`claimed_at.is.null,claimed_at.lt.${stale}`)
+      .select('id,created_at,message,session_id'),
+    db
+      .from('coach_requests')
+      .update({ claimed_at: now })
+      .eq('status', 'en_attente')
+      .eq('handler', 'session')
+      .or(`claimed_at.lt.${stale},and(claimed_at.is.null,session_tries.gte.2,created_at.lt.${stale})`)
+      .select('id,created_at,message,session_id'),
+  ])
+  if (fresh.error) throw new Error(fresh.error.message)
+  if (relay.error) throw new Error(relay.error.message)
+  return [...((fresh.data ?? []) as Claimed[]), ...((relay.data ?? []) as Claimed[]).map((r) => ({ ...r, relay: true }))].sort((a, b) =>
+    a.created_at.localeCompare(b.created_at),
+  )
 }
+
+const failuresOf = async (db: Db, id: string) =>
+  (
+    await db
+      .from('coach_api_log')
+      .select('id', { count: 'exact', head: true })
+      .eq('request_id', id)
+      .in('outcome', ['erreur', 'abandon'])
+  ).count ?? 0
 
 export async function usedToday(db: Db): Promise<number> {
   const { count } = await db
@@ -632,6 +662,8 @@ export async function answerClaimed(db: Db, apiKey: string, first: Claimed[], st
         await release(db, queue.slice(i).map((q) => q.id))
         return outcome
       }
+      // Relais déjà raté deux fois : on n'insiste plus (la revue du soir le reprendra), sans rien dépenser.
+      if (r.relay && (await failuresOf(db, r.id)) >= MAX_ATTEMPTS) continue
       const t0 = Date.now()
       const model = await pickModel(db)
       const usage: Usage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, extraUsd: 0 }
@@ -671,12 +703,10 @@ export async function answerClaimed(db: Db, apiKey: string, first: Claimed[], st
         const message = e instanceof Error ? e.message : String(e)
         await log(message === 'temps écoulé' ? 'abandon' : 'erreur', message)
         // Après deux échecs, le message passe à la session Claude Code (ou à la revue du soir).
-        const { count } = await db
-          .from('coach_api_log')
-          .select('id', { count: 'exact', head: true })
-          .eq('request_id', r.id)
-          .in('outcome', ['erreur', 'abandon'])
-        if ((count ?? 0) >= MAX_ATTEMPTS) await db.from('coach_requests').update({ handler: 'session', claimed_at: null }).eq('id', r.id).eq('status', 'en_attente')
+        // En relais, il reste pris en charge : il sera retenté dans 10 min, puis laissé à la revue du soir.
+        if (r.relay) continue
+        if ((await failuresOf(db, r.id)) >= MAX_ATTEMPTS)
+          await db.from('coach_requests').update({ handler: 'session', claimed_at: null }).eq('id', r.id).eq('status', 'en_attente')
         else await release(db, [r.id])
       }
     }

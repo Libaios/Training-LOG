@@ -28,6 +28,7 @@ Connexion obligatoire par email et mot de passe ; la session reste ouverte sur l
 - **À la demande** : l’onglet Coach enregistre la demande puis appelle la fonction Supabase `coach-fire` (`supabase/functions/coach-fire/`) et attend sa réponse.
   - Questions rapides d’entraînement : réponse en quelques secondes par l’API Claude (Sonnet sans réflexion préalable, secret `ANTHROPIC_API_KEY`, `api.ts`) avec un dossier de contexte (`dossier.ts`) et des outils bornés pour ajuster le plan ; consignes courtes dans `api.ts` (version abrégée de `coach/COACH.md`). Budget : 5 € par mois (au-delà de 80 %, Haiku prend le relais), 30 questions par jour au plus, coût de chaque appel dans `coach_api_log`.
   - Ce qui demande une vraie réflexion (plusieurs séances, objectif, analyse détaillée) ou touche l’appli : `handler = 'session'`, la fonction lance la routine Claude Code « à la demande » sur l’abonnement (secrets `CLAUDE_COACH_TOKEN`, `CLAUDE_COACH_FIRE_URL`). Consignes dans `coach/A_LA_DEMANDE.md` (code modifié, vérifié et publié automatiquement).
+  - Filet de sécurité : si la session longue s’arrête sans répondre (10 min après sa prise en charge, ou deux lancements sans prise en charge), l’API reprend le message en mode relais ; trois lancements au plus par message.
   - Relance chaque minute côté serveur tant qu’un message attend : `setup/relance-coach.sql`.
 
 ## Mise en place

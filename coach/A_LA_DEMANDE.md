@@ -14,6 +14,8 @@ Ce lancement vient de l’onglet Coach de l’appli « Carnet d’entraînement 
   ```
 - **Réponds d’abord à ce qui est rapide** (questions, commentaires de séance, ajustements du plan) : le coureur attend sa réponse dans l’appli, une question simple doit être répondue en une à deux minutes. Ne lance `npm ci` et les changements d’appli (longs) qu’après avoir répondu à tout le reste.
 - Lis aussi **les 10 derniers échanges déjà traités** (`message`, `response`) : un message est souvent la suite d’un échange précédent (« oui vas-y », « plus foncé », « comme je t’ai dit »). Et les 3 dernières `coach_notes`.
+- **Ne t’arrête jamais sans avoir écrit la réponse** d’un message pris en charge. Le connecteur Supabase peut demander une confirmation pour certaines requêtes (surtout les `DELETE`) : personne n’est là pour répondre et la requête échoue au bout de quelques minutes. Évite donc les `DELETE` (une séance que le coureur ne fera pas passe en `sautee`), et si une requête échoue ainsi, réessaie autrement puis écris la réponse.
+- Sans réponse 10 minutes après ta prise en charge, l’API reprend le message (mode relais). Pendant une modification de l’appli, qui est longue, remets `claimed_at = now()` sur ce message environ toutes les 5 minutes (avant `npm ci`, avant le build, avant la publication) pour signaler que tu es toujours dessus.
 - Un message qui commence par « Sur la séance « … » : » a été écrit depuis cette séance (`session_id`).
 - La colonne `kind` ne compte plus : un message peut parler d’entraînement, de l’appli, ou des deux. Décide d’après le contenu et traite toutes les parties.
 
