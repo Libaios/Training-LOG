@@ -1483,6 +1483,15 @@ body:has(.save-bar) .toast-region {
   font-size: 15px;
 }
 
+/* Phrase d'accueil du coach, renouvelée chaque soir */
+.today-welcome {
+  margin-top: 6px;
+  font-size: 17px;
+  font-weight: 500;
+  line-height: 1.35;
+  color: var(--ink);
+}
+
 /* Tons des séances : bleu = endurance, rouge = qualité, vert d’eau = sortie longue */
 .tone-easy {
   --tone: var(--strength);

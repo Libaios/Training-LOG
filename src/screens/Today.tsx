@@ -79,6 +79,11 @@ export function Today() {
   const extra = runs.filter((r) => r.performed_on >= monday && r.performed_on < nextMonday && !r.planned_session_id)
   const note = coachNotes[0]
   const hasPlan = plan.some((s) => s.scheduled_on >= monday)
+  // Phrase d'accueil du coach, réécrite chaque soir : masquée si la revue ne l'a pas renouvelée depuis 3 jours.
+  const welcome =
+    profile?.home_message && profile.home_message_at && Date.now() - new Date(profile.home_message_at).getTime() < 3 * 86400000
+      ? profile.home_message
+      : null
 
   return (
     <main className="screen today">
@@ -99,6 +104,7 @@ export function Today() {
             {phase ? `, ${phaseLabel(phase).toLowerCase()}` : ''}
           </p>
         )}
+        {welcome && <p className="today-welcome">{welcome}</p>}
       </header>
 
       {!hasPlan ? (

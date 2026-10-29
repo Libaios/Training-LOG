@@ -141,7 +141,7 @@ async function loadAll(): Promise<Data> {
     supabase
       .from('runner_profile')
       .select(
-        'id,race_name,race_date,race_distance_km,goal_time_sec,sessions_per_week,available_days,long_run_day,current_weekly_km,longest_recent_run_km,constraints,last_coach_review_at',
+        'id,race_name,race_date,race_distance_km,goal_time_sec,sessions_per_week,available_days,long_run_day,current_weekly_km,longest_recent_run_km,constraints,last_coach_review_at,home_message,home_message_at',
       )
       .eq('id', 1)
       .maybeSingle(),

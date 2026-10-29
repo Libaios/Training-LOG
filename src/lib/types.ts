@@ -116,6 +116,9 @@ export type RunnerProfile = {
   longest_recent_run_km: number | null
   constraints: string | null
   last_coach_review_at: string | null
+  /** Phrase d'accueil du coach, réécrite chaque soir par la revue. */
+  home_message: string | null
+  home_message_at: string | null
 }
 
 export type Performance = {
