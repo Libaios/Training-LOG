@@ -4,15 +4,19 @@
 // - CLAUDE_COACH_FIRE_URL : facultatif (sinon, l'adresse de la tâche ci-dessous)
 //
 // File d'attente : un message « en_attente » non pris en charge (claimed_at vide, ou vieux de plus
-// de 15 min) attend une session. Si une session tourne encore (finished_at vide depuis moins de
-// 15 min), elle le prendra avant de finir : on ne relance pas. Sinon on lance une nouvelle session.
+// de 10 min) attend une session. Si une session tourne encore (finished_at vide, et elle a pris un
+// message dans les 3 min après son lancement), elle le prendra avant de finir : on ne relance pas.
+// Une session qui n'a rien pris en 3 min est considérée comme bloquée : on en lance une autre.
 // Seuls les comptes connectés autorisés peuvent créer des messages ; sans message en attente, rien ne part.
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
 const DEFAULT_FIRE_URL = 'https://api.anthropic.com/v1/claude_code/routines/trig_01QK1a2dXLj2toqoPBoTetvJ/fire'
-const STALE_MS = 15 * 60 * 1000
+const STALE_MS = 10 * 60 * 1000
+const ALIVE_MS = 15 * 60 * 1000
+const STARTUP_MS = 3 * 60 * 1000
 const MIN_GAP_MS = 20 * 1000
+const MAX_PER_HOUR = 20
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -56,10 +60,26 @@ Deno.serve(async (req) => {
     .maybeSingle()
   if (last) {
     const age = Date.now() - new Date(last.fired_at).getTime()
-    if (age < MIN_GAP_MS || (!last.finished_at && age < STALE_MS)) {
-      return json({ status: 'already_running', session_url: last.session_url })
+    if (age < MIN_GAP_MS) return json({ status: 'already_running', session_url: last.session_url })
+    if (!last.finished_at && age < ALIVE_MS) {
+      // Vivante si elle a pris un message depuis son lancement, ou si elle démarre encore.
+      const { count: claimed } = await db
+        .from('coach_requests')
+        .select('id', { count: 'exact', head: true })
+        .gte('claimed_at', last.fired_at)
+      if (age < STARTUP_MS || (claimed ?? 0) > 0) {
+        return json({ status: 'already_running', session_url: last.session_url })
+      }
     }
   }
+
+  // Garde-fou : la tâche accepte 30 lancements par heure.
+  const { count: lastHour } = await db
+    .from('coach_fire_log')
+    .select('id', { count: 'exact', head: true })
+    .eq('status', 'ok')
+    .gte('fired_at', new Date(Date.now() - 3600 * 1000).toISOString())
+  if ((lastHour ?? 0) >= MAX_PER_HOUR) return json({ status: 'rate_limited' })
 
   const res = await fetch(fireUrl, {
     method: 'POST',

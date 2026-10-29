@@ -5,12 +5,13 @@ Ce lancement vient de l’onglet Coach de l’appli « Carnet d’entraînement 
 ## 0. Avant tout
 
 - Données : Supabase, projet `zmiazoekdvdwoqqdysse`, via le connecteur Supabase (`execute_sql`, `apply_migration`). S’il n’est pas disponible, arrête-toi et dis-le en une ligne.
-- **Prends en charge** les messages en attente avec cette requête exacte, et ne traite que les lignes qu’elle renvoie (une autre session s’occupe peut-être des autres) :
+- **Première action, avant de lire quoi que ce soit d’autre : prends en charge** les messages en attente avec cette requête exacte, et ne traite que les lignes qu’elle renvoie (une autre session s’occupe peut-être des autres) :
   ```sql
   update coach_requests set claimed_at = now()
-  where status = 'en_attente' and (claimed_at is null or claimed_at < now() - interval '15 minutes')
+  where status = 'en_attente' and (claimed_at is null or claimed_at < now() - interval '10 minutes')
   returning id, created_at, message, session_id;
   ```
+- **Réponds d’abord à ce qui est rapide** (questions, commentaires de séance, ajustements du plan) : le coureur attend sa réponse dans l’appli, une question simple doit être répondue en une à deux minutes. Ne lance `npm ci` et les changements d’appli (longs) qu’après avoir répondu à tout le reste.
 - Lis aussi **les 10 derniers échanges déjà traités** (`message`, `response`) : un message est souvent la suite d’un échange précédent (« oui vas-y », « plus foncé », « comme je t’ai dit »). Et les 3 dernières `coach_notes`.
 - Un message qui commence par « Sur la séance « … » : » a été écrit depuis cette séance (`session_id`).
 - La colonne `kind` ne compte plus : un message peut parler d’entraînement, de l’appli, ou des deux. Décide d’après le contenu et traite toutes les parties.
@@ -64,7 +65,7 @@ Vite, React 19, TypeScript ; appli installable publiée sur GitHub Pages (`/Trai
 
 ## 4. Pour finir
 
-- Chaque message pris en charge se termine par `response`, `status = 'traitee'`, `handled_at = now()`, dès qu’il est traité (n’attends pas la fin des autres).
+- Chaque message pris en charge se termine par `response`, `summary`, `status = 'traitee'`, `handled_at = now()`, dès qu’il est traité (n’attends pas la fin des autres). `summary` : titre court (3 à 7 mots) de ce qui a été demandé et de l’issue, affiché dans le récap de l’onglet Coach (ex. « FC cible en endurance », « Allures : une cible par zone »).
 - Refais la prise en charge (section 0) et traite ce qu’elle renvoie, jusqu’à ce qu’elle ne renvoie plus rien.
 - **Signale ta fin, puis vérifie une dernière fois**, dans cet ordre (sinon un message envoyé à ce moment-là serait oublié) :
   ```sql
