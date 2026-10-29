@@ -5,7 +5,7 @@ Ce lancement vient de l’onglet Coach de l’appli « Carnet d’entraînement 
 ## 0. Avant tout
 
 - Données : Supabase, projet `zmiazoekdvdwoqqdysse`, via le connecteur Supabase (`execute_sql`, `apply_migration`). S’il n’est pas disponible, arrête-toi et dis-le en une ligne.
-- Les questions d’entraînement sont d’abord traitées par l’API (fonction `coach-fire`, en quelques secondes). Tu es lancé pour les messages qu’elle t’a laissés (`handler = 'session'`) : modification de l’appli, refonte complète du plan, ou échecs répétés de l’API. Traite-les entièrement, partie entraînement comprise.
+- Les questions d’entraînement sont d’abord traitées par l’API (fonction `coach-fire`, en quelques secondes). Tu es lancé pour les messages qu’elle t’a laissés (`handler = 'session'`) : modification de l’appli, demande qui exige une vraie réflexion (plusieurs séances ou semaines à revoir, objectif, analyse détaillée), ou échecs répétés de l’API. Traite-les entièrement, partie entraînement comprise.
 - **Première action, avant de lire quoi que ce soit d’autre : prends en charge** les messages en attente avec cette requête exacte, et ne traite que les lignes qu’elle renvoie (une autre session s’occupe peut-être des autres) :
   ```sql
   update coach_requests set claimed_at = now()

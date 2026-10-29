@@ -86,6 +86,7 @@ export function fmtDuration(sec: number): string {
   return h ? `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}` : `${m}:${String(s).padStart(2, '0')}`
 }
 
+const cut = (t: string, max: number) => (t.length > max ? `${t.slice(0, max).replace(/\s+\S*$/, '')}…` : t)
 const km = (n: number | null | undefined) => (n == null ? '' : `${String(Math.round(Number(n) * 10) / 10).replace('.', ',')} km`)
 
 type Run = {
@@ -223,8 +224,8 @@ export type Dossier = { text: string; today: string; raceDate: string; firstMond
 export async function buildDossier(db: Db, opts: { excludeRequestIds?: string[] } = {}): Promise<Dossier> {
   const today = todayParis()
   const monday = weekMonday(today)
-  const from = addDays(monday, -14)
-  const to = addDays(monday, 34) // fin de la 5e semaine (semaine en cours + 4)
+  const from = addDays(monday, -7)
+  const to = addDays(monday, 20) // fin de la 3e semaine (semaine en cours + 2)
 
   const [profileRes, perfsRes, runsRes, sessionsRes, firstRes, exchRes, notesRes] = await Promise.all([
     db.from('runner_profile').select('*').eq('id', 1).maybeSingle(),
@@ -242,8 +243,8 @@ export async function buildDossier(db: Db, opts: { excludeRequestIds?: string[] 
       .eq('status', 'traitee')
       .not('response', 'is', null)
       .order('handled_at', { ascending: false })
-      .limit(10),
-    db.from('coach_notes').select('created_at,kind,title,body').order('created_at', { ascending: false }).limit(3),
+      .limit(6),
+    db.from('coach_notes').select('created_at,kind,title,body').order('created_at', { ascending: false }).limit(2),
   ])
   for (const r of [profileRes, perfsRes, runsRes, sessionsRes, exchRes, notesRes]) if (r.error) throw new Error(r.error.message)
 
@@ -284,8 +285,8 @@ export async function buildDossier(db: Db, opts: { excludeRequestIds?: string[] 
   out.push('', '## Perfs chronométrées')
   out.push(perfs.length ? perfs.map((x) => `- ${x.performed_on} ${km(x.distance_km)} en ${fmtDuration(x.time_sec)} (${x.kind})${x.notes ? `, ${x.notes}` : ''}`).join('\n') : 'Aucune.')
 
-  const recentRuns = runs.filter((r) => r.performed_on >= addDays(today, -42))
-  out.push('', '## Sorties des 6 dernières semaines (plus récentes d’abord)')
+  const recentRuns = runs.filter((r) => r.performed_on >= addDays(today, -28))
+  out.push('', '## Sorties des 4 dernières semaines (plus récentes d’abord)')
   out.push(
     recentRuns.length
       ? recentRuns
@@ -302,17 +303,24 @@ export async function buildDossier(db: Db, opts: { excludeRequestIds?: string[] 
     `Km par semaine (4 dernières, la plus ancienne d’abord) : ${[3, 2, 1, 0].map((i) => km(weekKm(addDays(monday, -7 * i))) || '0 km').join(', ')} (la dernière est la semaine en cours).`,
   )
 
+  sessions.sort((a, b) => a.scheduled_on.localeCompare(b.scheduled_on))
   const detail = sessions.filter((s) => s.scheduled_on <= to)
   const later = sessions.filter((s) => s.scheduled_on > to)
   out.push('', `## Plan en détail : du ${from} au ${to} (id entre crochets)`)
   out.push(detail.length ? detail.map((s) => sessionText(s, runsById)).join('\n') : 'Aucune séance.')
-  out.push('', '## Suite du plan jusqu’à la course (résumé ; détail avec l’outil lire_seances)')
+  // Suite du plan : une ligne par semaine, sans les id (lire_seances donne le détail).
+  const weeks = new Map<string, Session[]>()
+  for (const s of later) weeks.set(weekMonday(s.scheduled_on), [...(weeks.get(weekMonday(s.scheduled_on)) ?? []), s])
+  out.push('', '## Suite du plan jusqu’à la course, par semaine (détail et id : outil lire_seances)')
   out.push(
-    later.length
-      ? later
+    weeks.size
+      ? [...weeks.entries()]
+          .sort(([a], [b]) => a.localeCompare(b))
           .map(
-            (s) =>
-              `- [${s.id}] sem. ${s.week_number ?? '?'} (${s.flexible ? `semaine du ${weekMonday(s.scheduled_on)}` : `le ${s.scheduled_on}`}) ${s.phase ?? ''} : ${s.session_type} « ${s.title} »${s.target_distance_km ? `, ${km(s.target_distance_km)}` : ''}${s.locked ? ', verrouillée' : ''}${s.status !== 'prevue' ? `, ${STATUS[s.status] ?? s.status}` : ''}`,
+            ([m, list]) =>
+              `- sem. ${list[0].week_number ?? '?'} du ${m}${list[0].phase ? `, ${list[0].phase}` : ''} : ${list
+                .map((s) => `${s.title}${s.target_distance_km ? ` (${km(s.target_distance_km)})` : ''}${s.locked ? ' [verrouillée]' : ''}${s.status !== 'prevue' ? ` [${STATUS[s.status] ?? s.status}]` : ''}`)
+                .join(' ; ')}`,
           )
           .join('\n')
       : 'Rien après.',
@@ -322,11 +330,11 @@ export async function buildDossier(db: Db, opts: { excludeRequestIds?: string[] 
     .filter((e) => !opts.excludeRequestIds?.includes(e.id))
     .reverse()
   out.push('', '## Derniers échanges (le plus ancien d’abord)')
-  out.push(exch.length ? exch.map((e) => `- ${parisTime(e.created_at)}\n  Coureur : ${e.message}\n  Coach : ${e.response}`).join('\n') : 'Aucun.')
+  out.push(exch.length ? exch.map((e) => `- ${parisTime(e.created_at)}\n  Coureur : ${cut(e.message, 300)}\n  Coach : ${cut(e.response, 400)}`).join('\n') : 'Aucun.')
 
   const notes = ((notesRes.data ?? []) as { created_at: string; kind: string; title: string; body: string }[]).reverse()
   out.push('', '## Dernières notes du coach (la plus ancienne d’abord)')
-  out.push(notes.length ? notes.map((n) => `- ${parisTime(n.created_at)} (${n.kind}) ${n.title} : ${n.body}`).join('\n') : 'Aucune.')
+  out.push(notes.length ? notes.map((n) => `- ${parisTime(n.created_at)} (${n.kind}) ${n.title} : ${cut(n.body, 400)}`).join('\n') : 'Aucune.')
 
   return { text: out.join('\n'), today, raceDate, firstMonday: firstRes.data?.scheduled_on ? weekMonday(firstRes.data.scheduled_on) : null }
 }

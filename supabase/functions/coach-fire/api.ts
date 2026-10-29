@@ -1,7 +1,9 @@
 // Réponses du coach par l'API Messages : prend en charge les messages en attente, construit le dossier,
 // laisse le modèle répondre et ajuster le plan avec des outils bornés (jamais une sortie, une perf,
 // une séance faite ou verrouillée), puis écrit la réponse dans coach_requests.
-// Secret Supabase : ANTHROPIC_API_KEY. Facultatif : COACH_MODEL, COACH_EFFORT, COACH_DAILY_LIMIT.
+// Budget : Sonnet sans réflexion préalable pour les réponses rapides ; ce qui demande une vraie réflexion part à
+// la session longue (abonnement Claude, pas les crédits API). Au-delà de 80 % du budget du mois, Haiku prend le relais.
+// Secret Supabase : ANTHROPIC_API_KEY. Facultatif : COACH_MODEL, COACH_EFFORT, COACH_DAILY_LIMIT, COACH_MONTHLY_BUDGET_USD.
 import {
   buildDossier,
   isIsoDate,
@@ -16,53 +18,71 @@ import {
   type Step,
 } from './dossier.ts'
 
-const MODEL = Deno.env.get('COACH_MODEL') || 'claude-opus-5-5'
+const MODEL = Deno.env.get('COACH_MODEL') || 'claude-sonnet-5-5'
+const CHEAP_MODEL = 'claude-haiku-5-5'
 const EFFORT = Deno.env.get('COACH_EFFORT') || 'medium'
 const DAILY_LIMIT = Number(Deno.env.get('COACH_DAILY_LIMIT') || 30)
+const MONTHLY_BUDGET_USD = Number(Deno.env.get('COACH_MONTHLY_BUDGET_USD') || 5.4) // 5 €
+
+// Prix en dollars par million de jetons : entrée, sortie, écriture du cache (5 min), lecture du cache.
+const PRICES: Record<string, [number, number, number, number]> = {
+  'claude-opus-5-5': [4, 20, 5, 0.2],
+  'claude-sonnet-5-5': [2, 10, 2.5, 0.1],
+  'claude-haiku-5-5': [0.1, 0.5, 0.125, 0.01],
+}
+export const costOf = (model: string, u: Usage) => {
+  const [i, o, w, r] = PRICES[model] ?? PRICES['claude-opus-5-5']
+  return (u.input * i + u.output * o + u.cacheWrite * w + u.cacheRead * r) / 1e6
+}
+
+/** Dépense du mois en cours (heure de Paris), d'après le journal des appels. */
+export async function monthSpend(db: Db): Promise<number> {
+  const firstDay = `${todayParis().slice(0, 8)}01`
+  const { data } = await db.from('coach_api_log').select('cost_usd').gte('created_at', parisMidnightUtc(firstDay))
+  return (data ?? []).reduce((s: number, r: { cost_usd: number | null }) => s + Number(r.cost_usd ?? 0), 0)
+}
+
+/** Pas de réflexion préalable (moins de jetons) : ce qui demande de réfléchir part à la session longue. */
+const thinkingFor = (model: string) =>
+  model.startsWith('claude-sonnet') ? { thinking: { type: 'between_tools' } } : model.startsWith('claude-haiku') ? { thinking: { type: 'disabled' } } : {}
+
+/** Sonnet tant que le budget du mois le permet, Haiku au-delà de 80 %. */
+export async function pickModel(db: Db): Promise<string> {
+  return (await monthSpend(db)) >= MONTHLY_BUDGET_USD * 0.8 ? CHEAP_MODEL : MODEL
+}
+
 const STALE_MS = 10 * 60 * 1000
 const BUDGET_MS = 125 * 1000 // la fonction a 150 s au plus
 const MAX_TURNS = 8
 const MAX_ATTEMPTS = 2 // ensuite le message est laissé à la session Claude Code
-const RULES_URL = 'https://raw.githubusercontent.com/Libaios/Training-LOG/main/coach/COACH.md'
 
 export type Claimed = { id: string; created_at: string; message: string; session_id: string | null }
 export type ApiOutcome = { answered: number; transmitted: number; limited: boolean; failed: number }
 
-// Règles du coach : coach/COACH.md du repo (toujours à jour), gardées 10 min en mémoire. ---------
-let rulesCache: { text: string; at: number } | null = null
-async function coachRules(): Promise<string> {
-  if (rulesCache && Date.now() - rulesCache.at < 10 * 60 * 1000) return rulesCache.text
-  try {
-    const res = await fetch(RULES_URL, { signal: AbortSignal.timeout(4000) })
-    if (res.ok) {
-      const text = await res.text()
-      if (text.length > 500) {
-        rulesCache = { text, at: Date.now() }
-        return text
-      }
-    }
-  } catch {
-    /* repo injoignable : on garde l'ancienne copie ou les consignes de base */
-  }
-  return rulesCache?.text ?? ''
-}
+// Consignes : version courte de coach/COACH.md (sections 1, 2, 4 et 5), pour garder chaque appel léger.
+// À mettre à jour ici aussi quand une règle de COACH.md change.
+const INSTRUCTIONS = `Tu es le coach course de l’appli « Carnet d’entraînement » : tu prépares le coureur au semi-marathon du dossier. Il vient d’écrire un message dans l’appli et attend ta réponse tout de suite ; il ne voit que ta réponse (et la note si tu en écris une). Personne ne validera rien : agis, ne pose pas de question pour gagner du temps.
 
-const INSTRUCTIONS = `Tu es le coach course de l’appli « Carnet d’entraînement ». Le coureur vient d’écrire un message dans l’appli et attend ta réponse tout de suite. Il ne voit que ta réponse (et la note si tu en écris une). Personne ne validera rien : ne pose pas de question pour gagner du temps, agis.
+Règles d’entraînement
+- Séance : session_type (footing, recuperation, sortie_longue, seuil, fractionne, allure_semi, cotes, test), titre court (« 6 × 800 m »), étapes {label, repeat, distance_km, duration_min, zone, recovery}, target_distance_km total échauffement compris. Zones : X récupération, E endurance, S allure semi, T seuil, I intervalles, R vitesse. Jamais d’allure en dur dans une séance : l’appli les calcule.
+- Plan : le nombre de séances par semaine du profil (une rapide, une lente à 2), à jour libre : le coureur choisit ses jours, tu donnes la semaine, jamais un jour. Au moins un jour sans course entre deux séances, pas la rapide la veille ou le lendemain de la lente, une séance ratée ne se rattrape pas en doublant.
+- Phases : base (endurance, lignes droites, côtes courtes, fartlek), développement (intervalles I, seuil T), spécifique (blocs à allure S de plus en plus longs, seuil), affûtage 2 semaines (volume −30 % puis −50 %, intensité courte gardée), semaine de course.
+- 75 à 80 % du volume en E. Volume hebdo +10 % au plus d’une semaine sur l’autre, semaine allégée toutes les 3 à 4 semaines. Sortie longue +1 à 2 km par semaine, pic de 18 à 21 km trois semaines avant la course.
+- Ressenti : allure plus lente que la zone, ressenti 8/10 ou plus sur du facile, « pas tenu » qui se répète : allège la prochaine qualité. Plus rapide que prévu avec un ressenti de 5 ou moins, plusieurs fois : progresse un peu et propose un test (résultat à noter dans Profil, Tes perfs).
+- Douleur, au pied surtout (deux semaines d’arrêt en octobre) : jamais forcer. Footing ou repos à la place de la qualité, volume réduit, avis médical si ça dure.
 
-Tu as en dessous le guide complet du coach (coach/COACH.md). Suis ses sections 1 (format d’une séance), 2 (principes), 4.4 à 4.6 (allures et ressenti, demandes, écriture) et 5 (ton : un vrai coach exigeant). Ignore ce qu’il dit des requêtes SQL, de last_coach_review_at et de la note du soir : ici tu agis uniquement avec tes outils, et la note du soir reste le rôle de la revue du soir.
+Ton : tutoiement, phrases courtes, concret (chiffres, semaines, allures cibles du dossier, jamais de fourchette). Coach exigeant, le coureur l’a demandé : quand une séance est adaptée et qu’il doute, tu la maintiens, tu dis pourquoi il en est capable, tu donnes une consigne simple et tu finis par « Tu la fais. » Tu n’allèges que sur un vrai signal (douleur, fatigue qui s’accumule, allures non tenues plusieurs fois, maladie, gros manque de sommeil, contrainte de temps). Encourageant sans flatterie : si l’objectif devient irréaliste, dis-le.
 
-Comment traiter le message :
-1. Lis le dossier (niveau, allures cibles, plan, sorties, derniers échanges). Un message est souvent la suite d’un échange précédent (« oui vas-y », « comme je t’ai dit ») : relis les derniers échanges.
-2. Message écrit depuis une séance (« Sur la séance « … » : ») : réponds sur cette séance précisément. Si elle est adaptée, maintiens-la et pousse-le à la faire (« Tu la fais. ») ; n’allège que sur un vrai signal (douleur, fatigue qui s’accumule, allures non tenues plusieurs fois, maladie). Tu peux modifier cette séance même si elle est verrouillée : son commentaire vaut accord.
-3. Si le message le justifie, ajuste les séances à venir avec les outils (jamais une séance faite, passée ou verrouillée, sauf la séance commentée ; une séance passée non faite peut seulement passer en « sautée » si le message le dit). Séances à jour libre : tu donnes la semaine, jamais un jour. Mets une consigne (coach_comment) courte sur chaque séance changée.
-4. Si le plan a changé, ajoute une note (une seule) dans repondre : ce qui a changé et pourquoi, 2 à 4 lignes.
-5. Termine toujours par l’outil repondre : 1 à 3 phrases (jusqu’à 5 si la question le demande vraiment), texte simple sur un seul paragraphe, sans markdown, sans liste, sans tiret cadratin. Tutoiement, concret : chiffres, semaines, allures cibles du dossier (jamais de fourchette). Plus un titre de 3 à 7 mots qui résume la demande et son issue.
-6. Douleur (au pied en particulier) : jamais forcer. Remplace la qualité par du footing ou du repos, réduis le volume, avis médical si ça dure.
-7. Tu peux changer l’objectif de temps ou le nombre de séances par semaine seulement si le message le demande clairement (outil modifier_profil). Tu ne touches jamais aux sorties ni aux perfs.
-
-Appelle transmettre_au_developpeur, sans rien modifier ni répondre, si le message parle, même en partie, de l’appli elle-même (écran, couleur, affichage, bouton, bug, nouvelle fonction, nouvelle donnée), ou s’il demande de reconstruire tout le plan (plus d’une quinzaine de séances à changer). Une session plus longue s’en charge.
-
-Ne renvoie jamais le coureur vers une autre conversation ou un autre outil : tu es son coach et tu fais ce qu’il demande.`
+Comment traiter le message
+1. Relis les derniers échanges : un message est souvent la suite du précédent (« oui vas-y »).
+2. Écrit depuis une séance (« Sur la séance « … » : ») : réponds sur cette séance. Tu peux la modifier même si elle est verrouillée : son commentaire vaut accord.
+3. Si le message le justifie, ajuste les séances à venir avec les outils (jamais une séance faite, passée ou verrouillée, sauf la séance commentée ; une séance passée non faite peut seulement passer en « sautée » si le message le dit). Consigne courte (coach_comment) sur chaque séance changée.
+4. Plan changé : une seule note dans repondre, 2 à 4 lignes, ce qui a changé et pourquoi.
+5. Termine toujours par repondre : 1 à 3 phrases (5 au plus si la question l’exige), un seul paragraphe, sans markdown ni liste ni tiret cadratin, et un titre de 3 à 7 mots (la demande et son issue).
+6. Objectif de temps ou séances par semaine : seulement sur demande claire (modifier_profil). Jamais de changement de sortie ni de perf.
+7. Tu traites toi-même ce qui est rapide : une question sur une séance ou une allure, un doute, la motivation, un petit ajustement d’une ou deux séances, une douleur (réponse prudente tout de suite).
+8. Appelle confier_a_la_session_longue, sans rien modifier ni répondre, dès qu’il faut vraiment réfléchir : changer plus de deux séances ou une semaine entière, revoir l’objectif ou la structure du plan, analyser la progression en détail, question en plusieurs parties, ou message qui parle, même en partie, de l’appli elle-même (écran, affichage, bouton, bug, nouvelle fonction). Une session plus longue répond dans les minutes qui suivent.
+Ne renvoie jamais le coureur vers une autre conversation ou un autre outil.`
 
 // Outils -------------------------------------------------------------------------------------
 const TYPES = ['footing', 'recuperation', 'sortie_longue', 'seuil', 'fractionne', 'allure_semi', 'cotes', 'test', 'course']
@@ -180,8 +200,8 @@ const TOOLS = [
     },
   },
   {
-    name: 'transmettre_au_developpeur',
-    description: 'Message qui parle de l’appli elle-même, ou refonte complète du plan : laissé à une session plus longue. Ne réponds pas et ne modifie rien.',
+    name: 'confier_a_la_session_longue',
+    description: 'Demande qui exige une vraie réflexion (plusieurs séances ou semaines à revoir, objectif, analyse détaillée) ou qui touche l’appli elle-même : une session plus longue s’en charge. Ne réponds pas et ne modifie rien.',
     input_schema: { type: 'object', properties: { raison: { type: 'string' } }, required: ['raison'] },
   },
 ]
@@ -429,8 +449,8 @@ async function callApi(apiKey: string, body: Record<string, unknown>, timeoutMs:
 type Result = { kind: 'repondu'; reponse: string; titre: string | null; note?: { titre: string; texte: string } } | { kind: 'transmis'; raison: string }
 
 /** Traite un message : dossier, échanges avec le modèle et ses outils, jusqu'à repondre ou transmettre. */
-async function handleOne(db: Db, apiKey: string, request: Claimed, deadline: number, usage: Usage): Promise<Result> {
-  const [dossier, rules] = await Promise.all([buildDossier(db, { excludeRequestIds: [request.id] }), coachRules()])
+async function handleOne(db: Db, apiKey: string, model: string, request: Claimed, deadline: number, usage: Usage): Promise<Result> {
+  const dossier = await buildDossier(db, { excludeRequestIds: [request.id] })
   const ctx: Ctx = { db, request, today: dossier.today, raceDate: dossier.raceDate, firstMonday: dossier.firstMonday, changed: false, refused: false }
 
   let focus = ''
@@ -442,7 +462,7 @@ async function handleOne(db: Db, apiKey: string, request: Claimed, deadline: num
   }
 
   const system = [
-    { type: 'text', text: `${INSTRUCTIONS}\n\n# Guide du coach (coach/COACH.md)\n\n${rules || '(guide indisponible : suis les consignes ci-dessus)'}`, cache_control: { type: 'ephemeral' } },
+    { type: 'text', text: INSTRUCTIONS },
   ]
   const messages: { role: string; content: unknown }[] = [
     {
@@ -461,7 +481,7 @@ async function handleOne(db: Db, apiKey: string, request: Claimed, deadline: num
   for (let turn = 0; turn < MAX_TURNS; turn++) {
     const left = deadline - Date.now()
     if (left < 10000) throw new Error('temps écoulé')
-    const res = await callApi(apiKey, { model: MODEL, max_tokens: 16000, system, tools: TOOLS, messages, output_config: { effort: EFFORT } }, left)
+    const res = await callApi(apiKey, { model, max_tokens: 8000, system, tools: TOOLS, messages, output_config: { effort: EFFORT }, ...thinkingFor(model) }, left)
     usage.input += res.usage?.input_tokens ?? 0
     usage.output += res.usage?.output_tokens ?? 0
     usage.cacheRead += res.usage?.cache_read_input_tokens ?? 0
@@ -493,7 +513,7 @@ async function handleOne(db: Db, apiKey: string, request: Claimed, deadline: num
           note: note?.titre && note?.texte ? { titre: String(note.titre).slice(0, 120), texte: String(note.texte).slice(0, 1500) } : undefined,
         }
         results.push({ type: 'tool_result', tool_use_id: call.id, content: 'ok' })
-      } else if (call.name === 'transmettre_au_developpeur') {
+      } else if (call.name === 'confier_a_la_session_longue') {
         if (ctx.changed) {
           results.push({ type: 'tool_result', tool_use_id: call.id, content: 'Le plan a déjà été modifié : réponds avec repondre.', is_error: true })
           continue
@@ -567,13 +587,15 @@ export async function answerClaimed(db: Db, apiKey: string, first: Claimed[], st
         return outcome
       }
       const t0 = Date.now()
+      const model = await pickModel(db)
       const usage: Usage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }
       const log = (o: string, error?: string) =>
         db.from('coach_api_log').insert({
           request_id: r.id,
           mode: 'reponse',
           outcome: o,
-          model: MODEL,
+          model,
+          cost_usd: Math.round(costOf(model, usage) * 10000) / 10000,
           input_tokens: usage.input,
           output_tokens: usage.output,
           cache_read_tokens: usage.cacheRead,
@@ -582,7 +604,7 @@ export async function answerClaimed(db: Db, apiKey: string, first: Claimed[], st
           error: error ?? null,
         })
       try {
-        const res = await handleOne(db, apiKey, r, deadline, usage)
+        const res = await handleOne(db, apiKey, model, r, deadline, usage)
         if (res.kind === 'repondu') {
           const { error } = await db
             .from('coach_requests')

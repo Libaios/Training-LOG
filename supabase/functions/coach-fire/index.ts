@@ -4,7 +4,7 @@
 // 1. Avec le secret ANTHROPIC_API_KEY : les messages sont traités par l'API (api.ts), en quelques secondes.
 //    Corps { "wait": true } (envoi depuis l'appli) : la réponse est écrite avant le retour.
 //    Sinon (relance) : prise en charge immédiate, réponse écrite en arrière-plan.
-//    Les messages sur l'appli elle-même (ou une refonte complète du plan) passent en handler = 'session'.
+//    Ce qui demande une vraie réflexion, ou touche l'appli elle-même, passe en handler = 'session'.
 // 2. Session Claude Code (secrets CLAUDE_COACH_TOKEN et, si besoin, CLAUDE_COACH_FIRE_URL) : lancée pour
 //    les messages handler = 'session' (ou pour tous les messages sans clé API). File d'attente :
 //    une session encore en cours (finished_at vide, qui a pris un message dans les 3 min après son
