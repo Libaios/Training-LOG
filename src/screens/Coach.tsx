@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { PageHeader } from '../components/Layout'
 import { Icon } from '../components/Icon'
+import { RequestRow } from '../components/RequestRow'
 import { useStore } from '../lib/store'
 import { errorMessage } from '../lib/supabase'
 import { useToast } from '../lib/ui'
-import { answeredBy, FIRE_TOAST, requestState, stripSessionPrefix, waitingText } from '../lib/coachQueue'
-import type { CoachNote, CoachRequest } from '../lib/types'
+import { FIRE_TOAST, isRecent, when } from '../lib/coachQueue'
+import type { CoachNote } from '../lib/types'
 
 const KIND_LABEL = {
   plan: 'Plan',
@@ -14,70 +15,7 @@ const KIND_LABEL = {
   conseil: 'Conseil',
 } as const
 
-const dtf = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
-const when = (iso: string) => dtf.format(new Date(iso))
-
 const PAGE = 8
-/** La dernière demande reste ouverte 10 min : la réponse s'affiche sans avoir à la chercher. */
-const RECENT_MS = 10 * 60 * 1000
-
-const shorten = (text: string, max = 60) => {
-  const flat = text.replace(/\s+/g, ' ').trim()
-  return flat.length > max ? `${flat.slice(0, max).replace(/\s+\S*$/, '')}…` : flat
-}
-
-/** Une demande : son titre en une ligne, le détail (ton message et la réponse) en l'ouvrant. */
-function RequestRow({ r, open }: { r: CoachRequest; open?: boolean }) {
-  const { sessionById, coachFires } = useStore()
-  const live = coachFires.find((f) => f.status === 'ok' && f.session_url)
-  const session = r.session_id ? sessionById.get(r.session_id) : undefined
-  const state = requestState(r)
-  const by = answeredBy(r)
-  const message = stripSessionPrefix(r.message)
-  return (
-    <li>
-      <details className="recap-row" open={open}>
-        <summary>
-          <span className="row-main">
-            <span className="row-title">{r.summary ?? shorten(message)}</span>
-            <span className="row-sub">
-              {when(r.created_at)}
-              {session ? `, séance « ${session.title} »` : ''}
-              {by && <span className={by.className}>{by.label}</span>}
-            </span>
-          </span>
-          {state === 'traitee' ? (
-            <span className="status status-faite" aria-label="Répondu">
-              <Icon name="check" size={16} />
-            </span>
-          ) : (
-            <span className="spinner" role="img" aria-label={state === 'en_cours' ? 'Le coach répond' : 'En attente'} />
-          )}
-        </summary>
-        <div className="recap-detail">
-          <p className="comment-me">{message}</p>
-          {state === 'traitee' ? (
-            r.response && <p className="comment-coach">{r.response}</p>
-          ) : (
-            <p className="muted">
-              {waitingText(r)}{' '}
-              {live?.session_url && (
-                <a href={live.session_url} target="_blank" rel="noreferrer">
-                  Voir sa session
-                </a>
-              )}
-            </p>
-          )}
-          {session && (
-            <a className="btn btn-text btn-small" href={`#/seance/${session.id}`}>
-              Voir la séance
-            </a>
-          )}
-        </div>
-      </details>
-    </li>
-  )
-}
 
 /** Un message du coach : son titre, le texte en l'ouvrant (ouvert d'office s'il est nouveau). */
 function NoteRow({ n }: { n: CoachNote }) {
@@ -151,7 +89,7 @@ export function Coach() {
           <h2>Tes demandes</h2>
           <ul className="list compact">
             {coachRequests.slice(0, shownRequests).map((r, i) => (
-              <RequestRow key={r.id} r={r} open={i === 0 && Date.now() - new Date(r.created_at).getTime() < RECENT_MS} />
+              <RequestRow key={r.id} r={r} open={i === 0 && isRecent(r)} />
             ))}
           </ul>
           {coachRequests.length > shownRequests && (

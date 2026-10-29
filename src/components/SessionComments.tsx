@@ -2,12 +2,24 @@ import { useState, type FormEvent } from 'react'
 import { useStore } from '../lib/store'
 import { errorMessage } from '../lib/supabase'
 import { useToast } from '../lib/ui'
-import { answeredBy, FIRE_TOAST, requestState, stripSessionPrefix, waitingText } from '../lib/coachQueue'
+import { answeredBy, FIRE_TOAST, isRecent, requestState, stripSessionPrefix, waitingText } from '../lib/coachQueue'
 import type { PlanSession } from '../lib/types'
 import { Icon } from './Icon'
+import { RequestRow } from './RequestRow'
 
-/** Commentaires sur une séance (« ce sera trop dur ? ») et réponses du coach, affichés sous la séance. */
-export function SessionComments({ session, limit = 3 }: { session: PlanSession; limit?: number }) {
+/**
+ * Commentaires sur une séance (« ce sera trop dur ? ») et réponses du coach, affichés sous la séance.
+ * En récap (accueil), chaque échange tient sur une ligne, comme dans l'onglet Coach, et s'ouvre d'un geste.
+ */
+export function SessionComments({
+  session,
+  limit = 3,
+  recap = false,
+}: {
+  session: PlanSession
+  limit?: number
+  recap?: boolean
+}) {
   const { coachRequests, sendCoachRequest } = useStore()
   const toast = useToast()
   const [open, setOpen] = useState(false)
@@ -34,27 +46,35 @@ export function SessionComments({ session, limit = 3 }: { session: PlanSession; 
 
   return (
     <div className="session-comments">
-      {thread.map((r) => {
-        const by = answeredBy(r)
-        return (
-          <div key={r.id} className="comment">
-            <p className="comment-me">{stripSessionPrefix(r.message)}</p>
-            {requestState(r) === 'traitee' ? (
-              r.response && (
-                <p className="comment-coach">
-                  {r.response}
-                  {by && <span className={by.className}>{by.label}</span>}
-                </p>
-              )
-            ) : (
-              <p className="working">
-                <span className="spinner" aria-hidden />
-                {waitingText(r)}
-              </p>
-            )}
-          </div>
-        )
-      })}
+      {recap
+        ? thread.length > 0 && (
+            <ul className="list compact comment-recap">
+              {thread.map((r) => (
+                <RequestRow key={r.id} r={r} open={isRecent(r)} withSession={false} />
+              ))}
+            </ul>
+          )
+        : thread.map((r) => {
+            const by = answeredBy(r)
+            return (
+              <div key={r.id} className="comment">
+                <p className="comment-me">{stripSessionPrefix(r.message)}</p>
+                {requestState(r) === 'traitee' ? (
+                  r.response && (
+                    <p className="comment-coach">
+                      {r.response}
+                      {by && <span className={by.className}>{by.label}</span>}
+                    </p>
+                  )
+                ) : (
+                  <p className="working">
+                    <span className="spinner" aria-hidden />
+                    {waitingText(r)}
+                  </p>
+                )}
+              </div>
+            )
+          })}
       {open ? (
         <form className="comment-form" onSubmit={send}>
           <label className="field">

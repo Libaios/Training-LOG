@@ -2565,6 +2565,12 @@ body:has(.save-bar) .toast-region {
   flex-shrink: 0;
 }
 
+/* Échanges sous une séance de l'accueil : une ligne par échange, comme dans l'onglet Coach. */
+.comment-recap {
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+}
+
 /* Saisie du rythme : min et s, puis l'unité. */
 .duration.pace-input {
   grid-template-columns: 1fr 1fr auto;

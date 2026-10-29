@@ -39,6 +39,21 @@ export function waitingText(r: CoachRequest): string {
 /** Le message tel que le coureur l'a écrit (sans le rappel de la séance ajouté à l'envoi). */
 export const stripSessionPrefix = (message: string) => message.replace(/^Sur la séance « .* » : /s, '')
 
+const shorten = (text: string, max = 60) => {
+  const flat = text.replace(/\s+/g, ' ').trim()
+  return flat.length > max ? `${flat.slice(0, max).replace(/\s+\S*$/, '')}…` : flat
+}
+
+/** Titre d'un échange dans le récap : celui écrit par le coach, sinon le début du message. */
+export const requestTitle = (r: CoachRequest) => r.summary ?? shorten(stripSessionPrefix(r.message))
+
+const dtf = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+/** Date et heure courtes (« 29 oct., 16:48 »). */
+export const when = (iso: string) => dtf.format(new Date(iso))
+
+/** Le dernier échange reste ouvert 10 min : la réponse s'affiche sans avoir à la chercher. */
+export const isRecent = (r: CoachRequest) => Date.now() - new Date(r.created_at).getTime() < 10 * 60 * 1000
+
 /**
  * Tant qu'un message attend : rafraîchit toutes les 15 s pour afficher la réponse dès qu'elle arrive,
  * et relance le coach si un message n'est toujours pas pris en charge après une minute

@@ -55,7 +55,7 @@ function WeekSession({ session }: { session: PlanSession }) {
               Détails
             </a>
           </div>
-          <SessionComments session={session} />
+          <SessionComments session={session} recap />
         </>
       )}
     </article>
