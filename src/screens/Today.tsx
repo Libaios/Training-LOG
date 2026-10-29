@@ -1,10 +1,10 @@
 import { Icon } from '../components/Icon'
 import { KeyPace, SessionSteps } from '../components/Session'
 import { SessionComments } from '../components/SessionComments'
-import { dayAdvice, daysUntil, isTodo, plannedKm, runsKmBetween, sortSessions, useCoach, weekLabel } from '../lib/coach'
+import { dayAdvice, daysUntil, isTodo, plannedKm, runsKmBetween, sortSessions } from '../lib/coach'
 import { useStore } from '../lib/store'
-import { addDays, fmt1, fmtClock, fmtDate, fmtDateLong, fmtPace, paceOf, todayISO, weekStart } from '../lib/format'
-import { phaseLabel, runTypeLabel, SESSION_KIND, sessionTone, sessionTypeLabel, type PlanSession } from '../lib/types'
+import { addDays, fmt1, fmtClock, fmtDate, fmtPace, paceOf, todayISO, weekStart } from '../lib/format'
+import { phaseLabel, runTypeLabel, SESSION_KIND, sessionTone, type PlanSession } from '../lib/types'
 
 const NOTE_LABEL = { plan: 'Plan', bilan: 'Bilan', reprogrammation: 'Réajustement', conseil: 'Conseil' } as const
 
@@ -24,7 +24,7 @@ function WeekSession({ session }: { session: PlanSession }) {
     <article className={`week-card tone-${tone}${todo ? '' : ` is-${session.status}`}`}>
       <div className="week-card-head">
         <span className={`stag stag-${tone}`}>{SESSION_KIND[tone]}</span>
-        <span className="muted">{session.flexible ? sessionTypeLabel(session.session_type) : fmtDate(session.scheduled_on)}</span>
+        {!session.flexible && <span className="muted">{fmtDate(session.scheduled_on)}</span>}
       </div>
       <h3>{session.title}</h3>
       {todo && <KeyPace session={session} />}
@@ -52,7 +52,7 @@ function WeekSession({ session }: { session: PlanSession }) {
               Je l’ai faite
             </a>
             <a className="btn btn-text" href={`#/seance/${session.id}`}>
-              Modifier ou sauter
+              Détails
             </a>
           </div>
           <SessionComments session={session} />
@@ -64,7 +64,6 @@ function WeekSession({ session }: { session: PlanSession }) {
 
 export function Today() {
   const { profile, plan, runs, coachNotes, performances } = useStore()
-  const { paces, estimated } = useCoach()
   const today = todayISO()
   const monday = weekStart(today)
   const nextMonday = addDays(monday, 7)
@@ -84,11 +83,6 @@ export function Today() {
   return (
     <main className="screen today">
       <header className="today-head">
-        {profile && (
-          <p className="muted">
-            {profile.race_name}, {fmtDateLong(profile.race_date).toLowerCase()}
-          </p>
-        )}
         <h1>
           {raceIn !== null && raceIn >= 0 ? (
             <>
@@ -101,8 +95,8 @@ export function Today() {
         {weekNumber && (
           <p className="muted">
             Semaine {weekNumber}
-            {lastWeek ? ` sur ${lastWeek}` : ''}
-            {phase ? `, phase ${phaseLabel(phase).toLowerCase()}` : ''}
+            {lastWeek ? `/${lastWeek}` : ''}
+            {phase ? `, ${phaseLabel(phase).toLowerCase()}` : ''}
           </p>
         )}
       </header>
@@ -130,12 +124,9 @@ export function Today() {
             <div className="section-head">
               <h2>Cette semaine</h2>
               <span className="muted">
-                {done}/{counted} faites, {fmt1(runsKmBetween(runs, monday, nextMonday))} / {fmt1(plannedKm(week))} km
+                {done}/{counted}, {fmt1(runsKmBetween(runs, monday, nextMonday))}/{fmt1(plannedKm(week))} km
               </span>
             </div>
-            <p className="muted week-sub">
-              {weekLabel(today).replace(/^du/, 'Du')}, les jours que tu veux. Au moins un jour de repos entre deux séances.
-            </p>
             {week.map((s) => (
               <WeekSession key={s.id} session={s} />
             ))}
@@ -155,42 +146,27 @@ export function Today() {
                 ))}
               </ul>
             )}
-            {(!paces || estimated) && (
-              <p className="muted week-sub">
-                {paces ? 'Allures estimées d’après tes dernières sorties, plutôt prudentes.' : 'Allures au ressenti pour l’instant.'}{' '}
-                <a href="#/profil">Ajoute un chrono récent</a> pour les {paces ? 'affiner' : 'avoir en min/km'}.
-              </p>
-            )}
-            {next && (
-              <p className="muted week-sub">
-                Semaine prochaine : {next.title}
-                {week.length ? ', et la suite dans le Plan.' : '.'}
-              </p>
-            )}
           </section>
         </>
       )}
 
       {note && (
         <section className="section">
-          <div className="section-head">
-            <h2>Le mot du coach</h2>
-            <a href="#/coach">Tout voir</a>
-          </div>
+          <h2>Le mot du coach</h2>
           <a className={`note note-link${note.read ? '' : ' is-new'}`} href="#/coach">
             <span className="note-head">
               <span className="stag stag-neutral">{NOTE_LABEL[note.kind]}</span>
               <span className="muted">{note.read ? fmtDate(note.created_at.slice(0, 10)) : 'Nouveau'}</span>
             </span>
             <strong className="note-title">{note.title}</strong>
-            <span className="muted">{excerpt(note.body)}</span>
+            <span className="muted">{excerpt(note.body, 140)}</span>
           </a>
         </section>
       )}
 
       <a className="btn btn-outline btn-block" href="#/course/nouvelle">
         <Icon name="plus" size={18} />
-        Noter une sortie hors plan
+        Noter une sortie
       </a>
     </main>
   )

@@ -1,31 +1,19 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useState, type FormEvent } from 'react'
 import { useStore } from '../lib/store'
 import { errorMessage } from '../lib/supabase'
 import { useToast } from '../lib/ui'
-import type { FireStatus, PlanSession } from '../lib/types'
+import { FIRE_TOAST, requestState, stripSessionPrefix } from '../lib/coachQueue'
+import type { PlanSession } from '../lib/types'
 import { Icon } from './Icon'
 
-const TOAST: Partial<Record<FireStatus, string>> = {
-  fired: 'Envoyé : le coach te répond ici dans quelques minutes',
-  already_running: 'Envoyé : le coach est déjà au travail, il le traite aussi',
-}
-
 /** Commentaires sur une séance (« ce sera trop dur ? ») et réponses du coach, affichés sous la séance. */
-export function SessionComments({ session }: { session: PlanSession }) {
-  const { coachRequests, sendCoachRequest, reload } = useStore()
+export function SessionComments({ session, limit = 3 }: { session: PlanSession; limit?: number }) {
+  const { coachRequests, sendCoachRequest } = useStore()
   const toast = useToast()
   const [open, setOpen] = useState(false)
   const [text, setText] = useState('')
   const [busy, setBusy] = useState(false)
-  const thread = coachRequests.filter((r) => r.session_id === session.id).slice(0, 3).reverse()
-  const waiting = thread.some((r) => r.status === 'en_attente' && Date.now() - new Date(r.created_at).getTime() < 20 * 60000)
-
-  // Tant qu'une réponse est attendue, on rafraîchit pour l'afficher dès qu'elle arrive.
-  useEffect(() => {
-    if (!waiting) return
-    const id = window.setInterval(() => void reload(), 15000)
-    return () => window.clearInterval(id)
-  }, [waiting, reload])
+  const thread = coachRequests.filter((r) => r.session_id === session.id).slice(0, limit).reverse()
 
   async function send(e: FormEvent) {
     e.preventDefault()
@@ -35,7 +23,7 @@ export function SessionComments({ session }: { session: PlanSession }) {
       const status = await sendCoachRequest(`Sur la séance « ${session.title} » : ${text.trim()}`, session.id)
       setText('')
       setOpen(false)
-      toast(TOAST[status] ?? 'Envoyé au coach')
+      toast(FIRE_TOAST[status])
     } catch (err) {
       toast(errorMessage(err), 'error')
     } finally {
@@ -47,13 +35,13 @@ export function SessionComments({ session }: { session: PlanSession }) {
     <div className="session-comments">
       {thread.map((r) => (
         <div key={r.id} className="comment">
-          <p className="comment-me">{r.message.replace(/^Sur la séance « .* » : /, '')}</p>
-          {r.response ? (
-            <p className="comment-coach">{r.response}</p>
+          <p className="comment-me">{stripSessionPrefix(r.message)}</p>
+          {requestState(r) === 'traitee' ? (
+            r.response && <p className="comment-coach">{r.response}</p>
           ) : (
             <p className="working">
               <span className="spinner" aria-hidden />
-              Le coach regarde…
+              {requestState(r) === 'en_cours' ? 'Le coach répond…' : 'En attente du coach…'}
             </p>
           )}
         </div>
@@ -61,7 +49,7 @@ export function SessionComments({ session }: { session: PlanSession }) {
       {open ? (
         <form className="comment-form" onSubmit={send}>
           <label className="field">
-            <span>Ton commentaire pour le coach</span>
+            <span className="visually-hidden">Commentaire pour le coach</span>
             <textarea rows={2} maxLength={1500} value={text} onChange={(e) => setText(e.target.value)} autoFocus />
           </label>
           <div className="comment-actions">
@@ -76,7 +64,7 @@ export function SessionComments({ session }: { session: PlanSession }) {
       ) : (
         <button type="button" className="btn btn-text comment-open" onClick={() => setOpen(true)}>
           <Icon name="message" size={18} />
-          Commenter cette séance
+          Commenter
         </button>
       )}
     </div>

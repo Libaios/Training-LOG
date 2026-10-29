@@ -228,12 +228,15 @@ export type CoachRequest = {
   handled_at: string | null
   /** Séance commentée, si le message a été écrit depuis une séance. */
   session_id: string | null
+  /** Pris en charge par le coach (réponse en cours). */
+  claimed_at: string | null
 }
 
 export type CoachFire = {
   fired_at: string
   status: 'ok' | 'error'
   session_url: string | null
+  finished_at: string | null
 }
 
 /** Résultat du lancement du coach à la demande. */
@@ -244,4 +247,5 @@ export type FireStatus =
   | 'nothing_pending'
   | 'bad_code'
   | 'no_app_code'
+  | 'rate_limited'
   | 'error'

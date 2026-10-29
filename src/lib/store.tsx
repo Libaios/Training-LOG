@@ -155,8 +155,8 @@ async function loadAll(): Promise<Data> {
       ],
     ),
     fetchAll<CoachNote>('coach_notes', 'id,created_at,kind,title,body,read', [['created_at', false]]),
-    fetchAll<CoachRequest>('coach_requests', 'id,created_at,kind,message,status,response,handled_at,session_id', [['created_at', false]]),
-    supabase.from('coach_fire_log').select('fired_at,status,session_url').order('fired_at', { ascending: false }).limit(5),
+    fetchAll<CoachRequest>('coach_requests', 'id,created_at,kind,message,status,response,handled_at,session_id,claimed_at', [['created_at', false]]),
+    supabase.from('coach_fire_log').select('fired_at,status,session_url,finished_at').order('fired_at', { ascending: false }).limit(5),
   ])
   if (profileRes.error) throw profileRes.error
   const rawProfile = profileRes.data as RunnerProfile | null

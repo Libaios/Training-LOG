@@ -182,7 +182,7 @@ export function RunEditor({ id, sessionId }: { id?: string; sessionId?: string }
               update({ plannedSessionId: e.target.value || null, ...(s ? { runType: runTypeForSession[s.session_type] } : {}) })
             }}
           >
-            <option value="">Hors plan (run loisir, sortie en plus…)</option>
+            <option value="">Hors plan</option>
             {[...candidates, ...(linked && !candidates.includes(linked) ? [linked] : [])].map((p) => (
               <option key={p.id} value={p.id}>
                 {p.flexible ? `${p.title}${p.week_number ? ` (semaine ${p.week_number})` : ''}` : `${fmtDate(p.scheduled_on)} : ${p.title}`}
@@ -191,7 +191,6 @@ export function RunEditor({ id, sessionId }: { id?: string; sessionId?: string }
           </select>
         </label>
       )}
-      {linked?.coach_comment && <p className="muted date-line">Consigne : {linked.coach_comment}</p>}
 
       <fieldset className="field">
         <legend>Type de sortie</legend>

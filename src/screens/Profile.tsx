@@ -33,7 +33,7 @@ function LevelCard() {
     return (
       <section className="level-card">
         <h2>Tes allures</h2>
-        <p className="muted">Note une course ou une sortie à fond (ressenti 8/10 ou plus, 3 km minimum) : tes allures se calculent toutes seules.</p>
+        <p className="muted">Note une sortie : tes allures se calculent toutes seules.</p>
       </section>
     )
   }
@@ -52,10 +52,7 @@ function LevelCard() {
       </div>
       {gap !== null && (
         <p className="level-gap">
-          {gap > 0
-            ? `Il faut gagner ${fmtClock(gap)} d’ici la course : objectif ambitieux mais c’est le rôle de la prépa.`
-            : `Ton niveau actuel couvre déjà l’objectif avec ${fmtClock(-gap)} de marge.`}
-          {gap > 600 ? ' Au-delà de 10 min, le coach risque de te proposer un objectif intermédiaire.' : ''}
+          {gap > 0 ? `${fmtClock(gap)} à gagner d’ici la course.` : `${fmtClock(-gap)} d’avance sur l’objectif.`}
         </p>
       )}
       <table className="zones">
@@ -66,7 +63,6 @@ function LevelCard() {
               <th scope="row">
                 <span className={`zone-dot zone-${z.zone}`} aria-hidden />
                 {z.label}
-                <span className="muted">{z.hint}</span>
               </th>
               <td>{fmtTarget(paces[z.zone])}</td>
             </tr>
@@ -75,8 +71,8 @@ function LevelCard() {
       </table>
       <p className="muted chart-note">
         {estimated
-          ? `Allure cible en min/km, à viser à 5 s près. Estimées d’après tes sorties des 4 derniers mois (indice VDOT ${fmt1(vdot)}, méthode Daniels). Elles ne sont pas courues à fond : ces allures sont prudentes. Note une course ou une sortie à fond (ressenti 8/10 ou plus) pour les affiner.`
-          : `Allure cible en min/km, à viser à 5 s près. Indice VDOT ${fmt1(vdot)} (méthode Daniels), mis à jour automatiquement avec tes dernières courses et sorties à fond (90 derniers jours).`}
+          ? 'Estimées d’après tes sorties, donc prudentes. Une course ou une sortie à fond les affine.'
+          : 'Mises à jour avec tes courses et sorties à fond.'}
       </p>
     </section>
   )
@@ -85,15 +81,14 @@ function LevelCard() {
 function Recap() {
   const { runs } = useStore()
   const r = recapOf(runs)
-  const last = runs[0]
   return (
     <section className="section">
       <div className="section-head">
-        <h2>Tes 4 dernières semaines</h2>
+        <h2>4 dernières semaines</h2>
         <a href="#/course">Historique</a>
       </div>
       {r.runs === 0 ? (
-        <p className="muted">Aucune sortie sur les 4 dernières semaines. Dès que tu en notes une, ce récap se met à jour tout seul.</p>
+        <p className="muted">Aucune sortie sur 4 semaines.</p>
       ) : (
         <div className="recap-grid">
           <div>
@@ -105,20 +100,12 @@ function Recap() {
             <span className="muted">{r.runs > 1 ? 'sorties' : 'sortie'}</span>
           </div>
           <div>
-            <strong>{fmt1(r.weeklyKm)}</strong>
-            <span className="muted">km par semaine</span>
-          </div>
-          <div>
             <strong>{fmt1(r.longestKm)}</strong>
-            <span className="muted">km, la plus longue</span>
+            <span className="muted">km max</span>
           </div>
           <div>
             <strong>{r.avgPace ? fmtPace(r.avgPace) : '–'}</strong>
-            <span className="muted">/km en moyenne</span>
-          </div>
-          <div>
-            <strong>{last ? fmtDate(last.performed_on) : '–'}</strong>
-            <span className="muted">dernière sortie</span>
+            <span className="muted">/km moyen</span>
           </div>
         </div>
       )}
@@ -156,7 +143,6 @@ function Performances() {
 
   return (
     <section className="section">
-      <p className="muted">Facultatif : tes sorties comptent déjà. Utile pour une course faite ailleurs.</p>
       {performances.length > 0 && (
         <ul className="list compact">
           {performances.map((p) => (
@@ -316,7 +302,6 @@ function GoalAndAvailability({ profile }: { profile: RunnerProfile }) {
           ))}
         </div>
       </label>
-      <p className="muted">Pas de jour imposé : tu places tes séances quand tu veux dans la semaine.</p>
 
       <h2>Où tu en es</h2>
       <div className="form-grid even">

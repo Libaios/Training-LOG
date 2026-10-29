@@ -24,7 +24,6 @@ export function Login() {
         <span className="block block-light" />
       </div>
       <h1>Carnet d’entraînement</h1>
-      <p className="muted">Ta prépa semi-marathon, avec ton coach.</p>
       <form onSubmit={submit} className="stack">
         <label className="field">
           <span>Email</span>
@@ -55,7 +54,6 @@ export function Login() {
         <button type="submit" className="btn btn-primary btn-block" disabled={busy}>
           {busy ? 'Connexion…' : 'Se connecter'}
         </button>
-        <p className="muted chart-note">Tu restes connecté sur cet appareil tant que tu ne te déconnectes pas.</p>
       </form>
     </main>
   )

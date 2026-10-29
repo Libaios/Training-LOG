@@ -7,7 +7,7 @@ import { sessionTarget, weekLabel } from '../lib/coach'
 import { useStore, type SessionPatch } from '../lib/store'
 import { errorMessage } from '../lib/supabase'
 import { addDays, fmt1, fmtClock, fmtDate, fmtDateLong, fmtPace, paceOf, parseDecimal, parseIntOrNull, toInput, todayISO, weekStart } from '../lib/format'
-import { phaseLabel, SESSION_TYPES, type PlanSession, type SessionType } from '../lib/types'
+import { SESSION_TYPES, type PlanSession, type SessionType } from '../lib/types'
 import { useToast } from '../lib/ui'
 import { navigate } from '../lib/router'
 
@@ -123,10 +123,10 @@ export function SessionDetail({ id }: { id?: string }) {
               })}
             </div>
             <label className="field">
-              <span>Ou n’importe quel jour de la semaine voulue</span>
+              <span>Ou une date</span>
               <input type="date" value={form.date} onChange={(e) => update({ date: e.target.value })} />
             </label>
-            <p className="muted date-line">{form.date && `Semaine ${weekLabel(form.date)}, le jour que tu veux`}</p>
+            <p className="muted date-line">{form.date && `Semaine ${weekLabel(form.date)}`}</p>
           </>
         ) : (
           <>
@@ -178,7 +178,6 @@ export function SessionDetail({ id }: { id?: string }) {
           <span>Description</span>
           <textarea rows={3} value={form.description} onChange={(e) => update({ description: e.target.value })} />
         </label>
-        <p className="muted">Une séance modifiée à la main n’est plus changée par le coach, qui adapte le reste autour.</p>
         <div className="save-bar">
           {error && (
             <p className="form-error" role="alert">
@@ -203,29 +202,23 @@ export function SessionDetail({ id }: { id?: string }) {
       <EditorHeader
         title="Séance"
         backTo="plan"
-        action={
-          <button type="button" className="icon-btn" onClick={() => { setForm(formFrom(s)); setEditing(true) }} aria-label="Modifier">
-            <Icon name="edit" />
-          </button>
-        }
       />
       <div className="detail-head">
         <div className="chips">
           <SessionTag session={s} />
-          {s.phase && <span className="stag stag-neutral">{phaseLabel(s.phase)}</span>}
           {s.locked && <span className="stag stag-neutral">Modifiée par toi</span>}
         </div>
         <h1>{s.title}</h1>
         <p className="muted">
-          {s.flexible ? `À faire ${weekLabel(s.scheduled_on)}, le jour que tu veux` : fmtDateLong(s.scheduled_on)}
-          {target ? `. ${target}` : ''}
+          {s.flexible ? `Semaine ${weekLabel(s.scheduled_on)}` : fmtDateLong(s.scheduled_on)}
+          {target && s.status === 'faite' ? `. ${target}` : ''}
         </p>
       </div>
       {s.status !== 'faite' && <KeyPace session={s} />}
       {s.description && <p>{s.description}</p>}
       {(s.status === 'faite' || s.structure.length > 1) && <SessionSteps steps={s.structure} />}
       {s.coach_comment && <p className="coach-quote">{s.coach_comment}</p>}
-      <SessionComments session={s} />
+      <SessionComments session={s} limit={50} />
 
       {run && (
         <a className="done-line" href={`#/course/${run.id}`}>
@@ -251,7 +244,7 @@ export function SessionDetail({ id }: { id?: string }) {
           </a>
         )}
         <button type="button" className="btn btn-outline btn-block" onClick={() => { setForm(formFrom(s)); setEditing(true) }}>
-          Modifier ou déplacer
+          Modifier
         </button>
         {s.status === 'prevue' && (
           <button
@@ -260,7 +253,7 @@ export function SessionDetail({ id }: { id?: string }) {
             disabled={busy}
             onClick={() => act(() => store.setSessionStatus(s.id, 'sautee'), 'Séance marquée sautée')}
           >
-            Je ne la ferai pas
+            Sauter
           </button>
         )}
         {s.status === 'sautee' && (

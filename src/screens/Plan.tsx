@@ -2,13 +2,13 @@ import { useState } from 'react'
 import { Empty, PageHeader } from '../components/Layout'
 import { Icon } from '../components/Icon'
 import { SessionRow } from '../components/Session'
-import { daysUntil, groupByWeek, plannedKm, runsKmBetween, WEEK_RULES } from '../lib/coach'
+import { groupByWeek, plannedKm, runsKmBetween, WEEK_RULES } from '../lib/coach'
 import { useStore } from '../lib/store'
-import { addDays, fmt1, fmtDateLong, fmtDateShort, todayISO, weekStart } from '../lib/format'
+import { addDays, fmt1, fmtDateShort, todayISO, weekStart } from '../lib/format'
 import { phaseLabel } from '../lib/types'
 
 export function Plan() {
-  const { plan, runs, profile } = useStore()
+  const { plan, runs } = useStore()
   const [showPast, setShowPast] = useState(false)
   const currentMonday = weekStart(todayISO())
   const weeks = groupByWeek(plan)
@@ -27,18 +27,15 @@ export function Plan() {
           </a>
         }
       />
-      {profile && plan.length > 0 && (
-        <>
-          <p className="muted plan-intro">
-            Course le {fmtDateLong(profile.race_date).toLowerCase()}, dans {Math.max(0, Math.ceil(daysUntil(profile.race_date) / 7))}{' '}
-            semaines. {profile.sessions_per_week} séances par semaine, sans jour imposé.
-          </p>
-          <ul className="rules">
+      {plan.length > 0 && (
+        <details className="fold">
+          <summary>Les règles</summary>
+          <ul className="rules-list">
             {WEEK_RULES.map((r) => (
               <li key={r}>{r}</li>
             ))}
           </ul>
-        </>
+        </details>
       )}
 
       {plan.length === 0 ? (
@@ -49,13 +46,13 @@ export function Plan() {
             </a>
           }
         >
-          Pas encore de plan. Renseigne tes perfs et ton objectif dans Profil, puis demande-le au coach.
+          Pas encore de plan.
         </Empty>
       ) : (
         <>
           {past.length > 0 && (
             <button type="button" className="btn btn-text" onClick={() => setShowPast((v) => !v)}>
-              {showPast ? 'Masquer' : 'Afficher'} les semaines passées ({past.length})
+              {showPast ? 'Masquer' : 'Voir'} les semaines passées
             </button>
           )}
           {visible.map((w) => {

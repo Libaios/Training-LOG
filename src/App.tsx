@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { isConfigured, requireAuth, supabase } from './lib/supabase'
 import { DataProvider, useStore } from './lib/store'
+import { useCoachQueue } from './lib/coachQueue'
 import { useRoute } from './lib/router'
 import { BottomNav, Loading } from './components/Layout'
 import { Login, NoAccess, NotConfigured } from './screens/Login'
@@ -77,6 +78,7 @@ export function App() {
 function Routes({ email }: { email: string }) {
   const [section = '', sub, extra] = useRoute()
   const { loading, error, reload, coachNotes } = useStore()
+  useCoachQueue()
 
   const editing =
     ((section === 'muscu' || section === 'course') && sub !== undefined) ||

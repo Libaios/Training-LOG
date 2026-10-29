@@ -3,9 +3,8 @@ import { PageHeader } from '../components/Layout'
 import { useStore } from '../lib/store'
 import { errorMessage } from '../lib/supabase'
 import { useToast } from '../lib/ui'
-import type { FireStatus } from '../lib/types'
-import { Icon } from '../components/Icon'
-import config from '../../app.config.json'
+import { FIRE_TOAST, requestState, stripSessionPrefix } from '../lib/coachQueue'
+import type { CoachNote, CoachRequest } from '../lib/types'
 
 const KIND_LABEL = {
   plan: 'Plan',
@@ -17,29 +16,58 @@ const KIND_LABEL = {
 const dtf = new Intl.DateTimeFormat('fr-FR', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
 const when = (iso: string) => dtf.format(new Date(iso))
 
-const FIRE_TOAST: Record<FireStatus, string> = {
-  fired: 'Le coach s’en occupe : réponse dans quelques minutes',
-  already_running: 'Le coach est déjà au travail, il traite aussi ce message',
-  not_configured: 'Message envoyé, le coach le traitera ce soir',
-  nothing_pending: 'Message envoyé',
-  bad_code: 'Demande refusée',
-  no_app_code: 'Demande refusée',
-  error: 'Message enregistré. Si rien ne bouge, appuie sur Relancer',
+const PAGE = 15
+
+type Item = { at: string; request?: CoachRequest; note?: CoachNote }
+
+function Exchange({ r }: { r: CoachRequest }) {
+  const { sessionById } = useStore()
+  const session = r.session_id ? sessionById.get(r.session_id) : undefined
+  const state = requestState(r)
+  return (
+    <li className="exchange">
+      <div className="exchange-meta muted">
+        {session ? (
+          <a href={`#/seance/${session.id}`}>Séance : {session.title}</a>
+        ) : (
+          <span />
+        )}
+        <span>{when(r.created_at)}</span>
+      </div>
+      <p className="comment-me">{stripSessionPrefix(r.message)}</p>
+      {state === 'traitee' ? (
+        r.response && <p className="comment-coach">{r.response}</p>
+      ) : (
+        <p className="working">
+          <span className="spinner" aria-hidden />
+          {state === 'en_cours' ? 'Le coach répond…' : 'En attente du coach…'}
+        </p>
+      )}
+    </li>
+  )
 }
 
-const RELAUNCH_TOAST: Partial<Record<FireStatus, string>> = {
-  fired: 'Coach relancé : réponse dans quelques minutes',
-  nothing_pending: 'Plus rien en attente',
-  error: 'Lancement impossible pour l’instant, réessaie dans un moment',
+function NoteItem({ n }: { n: CoachNote }) {
+  return (
+    <li>
+      <article className={`note note-${n.kind}${n.read ? '' : ' is-new'}`}>
+        <div className="note-head">
+          <span className="stag stag-neutral">{KIND_LABEL[n.kind]}</span>
+          <span className="muted">{when(n.created_at)}</span>
+        </div>
+        <h3>{n.title}</h3>
+        <p className="note-body">{n.body}</p>
+      </article>
+    </li>
+  )
 }
-
-const LIVE_WINDOW_MS = 20 * 60 * 1000
 
 export function Coach() {
-  const { coachNotes, coachRequests, coachFires, sendCoachRequest, relaunchCoach, markNotesRead, reload } = useStore()
+  const { coachNotes, coachRequests, sendCoachRequest, markNotesRead } = useStore()
   const toast = useToast()
   const [message, setMessage] = useState('')
   const [busy, setBusy] = useState(false)
+  const [shown, setShown] = useState(PAGE)
   const marked = useRef(false)
 
   // Les messages affichés sont considérés comme lus (une seule fois par visite).
@@ -65,132 +93,37 @@ export function Coach() {
     }
   }
 
-  async function relaunch() {
-    setBusy(true)
-    try {
-      const status = await relaunchCoach()
-      toast(RELAUNCH_TOAST[status] ?? FIRE_TOAST[status])
-    } catch (err) {
-      toast(errorMessage(err), 'error')
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  const pending = coachRequests.filter((r) => r.status === 'en_attente')
-  const answered = coachRequests.filter((r) => r.status === 'traitee').slice(0, 5)
-
-  // Un lancement réussi récent couvre les demandes envoyées avant lui (ou juste après).
-  const lastFire = coachFires.find((f) => f.status === 'ok')
-  const live =
-    lastFire && Date.now() - new Date(lastFire.fired_at).getTime() < LIVE_WINDOW_MS ? lastFire : undefined
-  const isCovered = (createdAt: string) =>
-    !!live && new Date(live.fired_at).getTime() >= new Date(createdAt).getTime() - 120000
-
-  // Tant que le coach travaille, on rafraîchit pour afficher sa réponse dès qu'elle arrive.
-  const working = pending.some((r) => isCovered(r.created_at))
-  useEffect(() => {
-    if (!working) return
-    const id = window.setInterval(() => void reload(), 15000)
-    return () => window.clearInterval(id)
-  }, [working, reload])
+  // Un seul fil, du plus récent au plus ancien : tes messages avec la réponse, et les notes du coach.
+  const items: Item[] = [
+    ...coachRequests.map((r) => ({ at: r.created_at, request: r })),
+    ...coachNotes.map((n) => ({ at: n.created_at, note: n })),
+  ].sort((a, b) => b.at.localeCompare(a.at))
 
   return (
     <main className="screen">
       <PageHeader title="Coach" />
-      <p className="muted">
-        Écris ce que tu veux, le coach s’en occupe en quelques minutes : ton entraînement (imprévu, douleur, envie de
-        changer de rythme) comme l’appli elle-même (couleurs, écrans, nouvelles fonctions). Chaque soir, il relit aussi
-        tes sorties de la journée.
-      </p>
 
       <form className="coach-form" onSubmit={send}>
         <label className="field">
-          <span>Écrire au coach</span>
-          <textarea
-            rows={4}
-            maxLength={2000}
-            placeholder="Sensations, imprévus, ou ce que tu veux changer dans l’appli…"
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-          />
+          <span className="visually-hidden">Message au coach</span>
+          <textarea rows={3} maxLength={2000} value={message} onChange={(e) => setMessage(e.target.value)} />
         </label>
         <button type="submit" className="btn btn-primary" disabled={busy || !message.trim()}>
           Envoyer
         </button>
       </form>
 
-      {pending.length > 0 && (
-        <section className="section">
-          <h2>En attente</h2>
-          <ul className="list compact">
-            {pending.map((r) => (
-              <li key={r.id} className="request">
-                <p>{r.message}</p>
-                {isCovered(r.created_at) ? (
-                  <span className="working">
-                    <span className="spinner" aria-hidden />
-                    Le coach s’en occupe…
-                    {live?.session_url && (
-                      <a href={live.session_url} target="_blank" rel="noreferrer">
-                        Suivre en direct
-                      </a>
-                    )}
-                  </span>
-                ) : (
-                  <span className="muted">Envoyé {when(r.created_at)}, pas encore pris en charge</span>
-                )}
-              </li>
-            ))}
-          </ul>
-          {!working && (
-            <button type="button" className="btn btn-quiet" onClick={() => void relaunch()} disabled={busy}>
-              Relancer le coach
-            </button>
+      {items.length > 0 && (
+        <ul className="feed">
+          {items.slice(0, shown).map((it) =>
+            it.request ? <Exchange key={it.request.id} r={it.request} /> : <NoteItem key={it.note!.id} n={it.note!} />,
           )}
-        </section>
+        </ul>
       )}
-
-      <section className="section">
-        <h2>Messages du coach</h2>
-        {coachNotes.length === 0 ? (
-          <p className="muted">Rien pour l’instant. Le premier message arrivera avec ton plan.</p>
-        ) : (
-          <div className="notes">
-            {coachNotes.map((n) => (
-              <article key={n.id} className={`note note-${n.kind}${n.read ? '' : ' is-new'}`}>
-                <div className="note-head">
-                  <span className="stag stag-neutral">{KIND_LABEL[n.kind]}</span>
-                  <span className="muted">{when(n.created_at)}</span>
-                </div>
-                <h3>{n.title}</h3>
-                <p className="note-body">{n.body}</p>
-              </article>
-            ))}
-          </div>
-        )}
-      </section>
-
-      {config.coachChatUrl && (
-        <a className="btn btn-text" href={config.coachChatUrl} target="_blank" rel="noreferrer">
-          <Icon name="message" size={18} />
-          Discuter avec le coach dans Claude
-        </a>
-      )}
-
-      {answered.length > 0 && (
-        <section className="section">
-          <h2>Tes derniers messages</h2>
-          <ul className="list compact">
-            {answered.map((r) => (
-              <li key={r.id} className="request">
-                <p>{r.message}</p>
-                {r.response && <p className="request-response">{r.response}</p>}
-                <span className="muted">{when(r.created_at)}</span>
-              </li>
-            ))}
-          </ul>
-        </section>
+      {items.length > shown && (
+        <button type="button" className="btn btn-text" onClick={() => setShown(shown + PAGE)}>
+          Messages plus anciens
+        </button>
       )}
     </main>
   )
