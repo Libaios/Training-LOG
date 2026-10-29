@@ -42,6 +42,40 @@ function stepDetail(step: StructureStep): string {
   return parts.join(', ')
 }
 
+const QUALITY_ZONES: Zone[] = ['S', 'T', 'I', 'R']
+
+/**
+ * L'étape qui donne le ton de la séance : la partie rapide pour une séance de qualité ou la course,
+ * sinon la première (un footing avec quelques lignes droites reste un footing).
+ */
+export function keyStep(steps: StructureStep[], quality: boolean): (StructureStep & { zone: Zone }) | undefined {
+  const withZone = steps.filter((s): s is StructureStep & { zone: Zone } => !!s.zone)
+  return (quality ? withZone.find((s) => QUALITY_ZONES.includes(s.zone)) : undefined) ?? withZone[0]
+}
+
+/** Distance et allure clé, en gros, pour voir la séance d'un coup d'œil. */
+export function KeyPace({ session }: { session: PlanSession }) {
+  const { paces } = useCoach()
+  const target = sessionTarget(session)
+  const tone = sessionTone(session.session_type)
+  const step = keyStep(session.structure, tone === 'quality' || tone === 'race')
+  const quality = step && QUALITY_ZONES.includes(step.zone) && session.structure.length > 1
+  if (!target && !step) return null
+  return (
+    <div className={`key-pace tone-${tone}`}>
+      {target && <span className="today-target">{target}</span>}
+      {step && (
+        <span className="key-pace-value">
+          <strong>{paces ? `${fmtRange(paces[step.zone])} /km` : ZONE_FEEL[step.zone]}</strong>
+          <span className="muted">
+            {quality ? `${zoneLabel(step.zone)} : ${step.label}` : paces ? ZONE_FEEL[step.zone] : zoneLabel(step.zone)}
+          </span>
+        </span>
+      )}
+    </div>
+  )
+}
+
 /** Déroulé d'une séance avec les allures cibles calculées depuis le niveau actuel. */
 export function SessionSteps({ steps }: { steps: StructureStep[] }) {
   const { paces } = useCoach()

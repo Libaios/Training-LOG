@@ -226,6 +226,8 @@ export type CoachRequest = {
   status: 'en_attente' | 'traitee'
   response: string | null
   handled_at: string | null
+  /** Séance commentée, si le message a été écrit depuis une séance. */
+  session_id: string | null
 }
 
 export type CoachFire = {

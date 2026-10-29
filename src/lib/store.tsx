@@ -86,7 +86,7 @@ type Store = Data & {
   saveSession: (patch: SessionPatch, id?: string) => Promise<string>
   setSessionStatus: (id: string, status: SessionStatus) => Promise<void>
   deleteSession: (id: string) => Promise<void>
-  sendCoachRequest: (message: string) => Promise<FireStatus>
+  sendCoachRequest: (message: string, sessionId?: string) => Promise<FireStatus>
   relaunchCoach: () => Promise<FireStatus>
   markNotesRead: (ids: string[]) => Promise<void>
 }
@@ -155,7 +155,7 @@ async function loadAll(): Promise<Data> {
       ],
     ),
     fetchAll<CoachNote>('coach_notes', 'id,created_at,kind,title,body,read', [['created_at', false]]),
-    fetchAll<CoachRequest>('coach_requests', 'id,created_at,kind,message,status,response,handled_at', [['created_at', false]]),
+    fetchAll<CoachRequest>('coach_requests', 'id,created_at,kind,message,status,response,handled_at,session_id', [['created_at', false]]),
     supabase.from('coach_fire_log').select('fired_at,status,session_url').order('fired_at', { ascending: false }).limit(5),
   ])
   if (profileRes.error) throw profileRes.error
@@ -501,8 +501,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   /** Enregistre la demande (entraînement ou appli, le coach décide) puis lance le coach tout de suite. */
   const sendCoachRequest = useCallback(
-    async (message: string): Promise<FireStatus> => {
-      const { error: e } = await supabase.from('coach_requests').insert({ message: message.trim() })
+    async (message: string, sessionId?: string): Promise<FireStatus> => {
+      const { error: e } = await supabase
+        .from('coach_requests')
+        .insert({ message: message.trim(), session_id: sessionId ?? null })
       if (e) throw e
       const status = await fireCoach({})
       await reload()

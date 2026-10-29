@@ -18,7 +18,8 @@ Ce lancement vient de l’onglet Coach de l’appli « Carnet d’entraînement 
 
 ## 2. Ce qui touche l’entraînement
 
-Lis `coach/COACH.md` et suis ses sections 2 et 4 :
+Lis `coach/COACH.md` et suis ses sections 2, 4 et 5 (ton : un vrai coach exigeant, qui pousse le coureur quand c’est bon pour lui) :
+- un message avec `session_id` est un commentaire écrit depuis cette séance (« ce sera trop dur ? ») : réponds sur cette séance précisément (étape 5 de la section 4 de `COACH.md`). Si la séance est adaptée, maintiens-la et pousse-le à la faire ; n’allège que sur un vrai signal (douleur, fatigue qui s’accumule). Tu peux modifier cette séance même si elle est `locked` ;
 - adapte les séances à venir non verrouillées si le message le justifie ;
 - si le plan change, écris une seule note `reprogrammation` dans `coach_notes` qui explique les changements ;
 - tiens compte des sorties enregistrées depuis `runner_profile.last_coach_review_at`, sans mettre à jour `last_coach_review_at` et sans écrire la note du soir (c’est le rôle de la revue du soir) ;

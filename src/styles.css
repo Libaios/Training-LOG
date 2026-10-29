@@ -2358,3 +2358,94 @@ body:has(.save-bar) .toast-region {
   gap: 6px;
   font-size: 15px;
 }
+
+/* Allure clé d'une séance, en tête de carte */
+.key-pace {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: var(--r);
+  background: var(--tone-soft);
+}
+
+.key-pace .today-target {
+  line-height: 1;
+}
+
+.key-pace-value {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  text-align: right;
+  min-width: 0;
+}
+
+.key-pace-value strong {
+  font-family: var(--font-cond);
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--tone-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.key-pace-value .muted {
+  font-size: 13px;
+}
+
+/* Commentaires sur une séance */
+.session-comments {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.comment {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 15px;
+}
+
+.comment-me {
+  align-self: flex-end;
+  max-width: 85%;
+  padding: 8px 12px;
+  border-radius: var(--r) var(--r) 2px var(--r);
+  background: var(--strength-soft);
+  color: var(--ink);
+}
+
+.comment-coach {
+  align-self: flex-start;
+  max-width: 90%;
+  padding: 8px 12px;
+  border-radius: var(--r) var(--r) var(--r) 2px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+}
+
+.comment-coach::before {
+  content: 'Le coach : ';
+  font-weight: 600;
+}
+
+.comment-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.comment-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.comment-open {
+  align-self: flex-start;
+  gap: 6px;
+  padding-left: 0;
+}

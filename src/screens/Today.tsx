@@ -1,6 +1,7 @@
 import { Icon } from '../components/Icon'
-import { SessionSteps } from '../components/Session'
-import { dayAdvice, daysUntil, isTodo, plannedKm, runsKmBetween, sessionTarget, sortSessions, useCoach, weekLabel } from '../lib/coach'
+import { KeyPace, SessionSteps } from '../components/Session'
+import { SessionComments } from '../components/SessionComments'
+import { dayAdvice, daysUntil, isTodo, plannedKm, runsKmBetween, sortSessions, useCoach, weekLabel } from '../lib/coach'
 import { useStore } from '../lib/store'
 import { addDays, fmt1, fmtClock, fmtDate, fmtDateLong, fmtPace, paceOf, todayISO, weekStart } from '../lib/format'
 import { phaseLabel, runTypeLabel, SESSION_KIND, sessionTone, sessionTypeLabel, type PlanSession } from '../lib/types'
@@ -18,7 +19,6 @@ function WeekSession({ session }: { session: PlanSession }) {
   const tone = sessionTone(session.session_type)
   const run = session.run_id ? runs.find((r) => r.id === session.run_id) : undefined
   const todo = isTodo(session)
-  const target = sessionTarget(session)
 
   return (
     <article className={`week-card tone-${tone}${todo ? '' : ` is-${session.status}`}`}>
@@ -27,7 +27,7 @@ function WeekSession({ session }: { session: PlanSession }) {
         <span className="muted">{session.flexible ? sessionTypeLabel(session.session_type) : fmtDate(session.scheduled_on)}</span>
       </div>
       <h3>{session.title}</h3>
-      {todo && target && <p className="today-target">{target}</p>}
+      {todo && <KeyPace session={session} />}
 
       {session.status === 'faite' ? (
         <a className="done-line" href={run ? `#/course/${run.id}` : `#/seance/${session.id}`}>
@@ -44,7 +44,7 @@ function WeekSession({ session }: { session: PlanSession }) {
         </a>
       ) : (
         <>
-          <SessionSteps steps={session.structure} />
+          {session.structure.length > 1 && <SessionSteps steps={session.structure} />}
           {session.coach_comment && <p className="coach-quote">{session.coach_comment}</p>}
           <div className="today-actions">
             <a className="btn btn-primary" href={`#/course/nouvelle/${session.id}`}>
@@ -55,6 +55,7 @@ function WeekSession({ session }: { session: PlanSession }) {
               Modifier ou sauter
             </a>
           </div>
+          <SessionComments session={session} />
         </>
       )}
     </article>

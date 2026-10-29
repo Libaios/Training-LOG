@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { EditorHeader, Empty } from '../components/Layout'
 import { Icon } from '../components/Icon'
-import { SessionSteps, SessionTag } from '../components/Session'
+import { KeyPace, SessionSteps, SessionTag } from '../components/Session'
+import { SessionComments } from '../components/SessionComments'
 import { sessionTarget, weekLabel } from '../lib/coach'
 import { useStore, type SessionPatch } from '../lib/store'
 import { errorMessage } from '../lib/supabase'
@@ -220,9 +221,11 @@ export function SessionDetail({ id }: { id?: string }) {
           {target ? `. ${target}` : ''}
         </p>
       </div>
+      {s.status !== 'faite' && <KeyPace session={s} />}
       {s.description && <p>{s.description}</p>}
-      <SessionSteps steps={s.structure} />
+      {(s.status === 'faite' || s.structure.length > 1) && <SessionSteps steps={s.structure} />}
       {s.coach_comment && <p className="coach-quote">{s.coach_comment}</p>}
+      <SessionComments session={s} />
 
       {run && (
         <a className="done-line" href={`#/course/${run.id}`}>
