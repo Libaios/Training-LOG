@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { dayAdvice, sortSessions } from '../src/lib/week'
+import { dayAdvice, recoverySec, sessionTimeSec, sortSessions } from '../src/lib/week'
 import type { PlanSession, Run } from '../src/lib/types'
 
 // Semaine du lundi 2 au dimanche 8 novembre 2026 : une rapide et une lente, rangées au dimanche.
@@ -73,5 +73,22 @@ const raceWeek = [footing, race]
 assert.match(dayAdvice('2026-11-03', raceWeek, [run('2026-11-01')], undefined).detail, /d’ici 6 nov\./)
 assert.equal(dayAdvice('2026-11-07', raceWeek, [run('2026-11-05')], undefined).tone, 'rest', 'repos la veille de la course')
 assert.notEqual(dayAdvice('2026-11-06', raceWeek, [run('2026-11-03')], undefined).detail.includes('« Semi » aujourd’hui'), true)
+
+// Temps total d'une séance.
+assert.equal(recoverySec('2 min trot'), 120)
+assert.equal(recoverySec('1 min 30 trot'), 90)
+assert.equal(recoverySec('45 s marche'), 45)
+assert.equal(recoverySec('trot'), null)
+const P = { E: { target: 400 }, T: { target: 300 }, X: { target: 450 } }
+const fartlek = { target_distance_km: 5.5, target_duration_min: null, structure: [
+  { label: 'Échauffement', zone: 'E' as const, duration_min: 12 },
+  { label: '5 × 1 min', zone: 'T' as const, repeat: 5, recovery: '2 min trot', duration_min: 1 },
+  { label: 'Retour au calme', zone: 'X' as const, duration_min: 8 },
+] }
+assert.equal(sessionTimeSec(fartlek, P), (12 + 5 + 8 + 8) * 60)
+assert.equal(sessionTimeSec({ target_distance_km: 4, target_duration_min: null, structure: [{ label: 'Footing', zone: 'E', distance_km: 4 }] }, P), 1600)
+assert.equal(sessionTimeSec({ target_distance_km: 4, target_duration_min: null, structure: [] }, P), 1600)
+assert.equal(sessionTimeSec({ target_distance_km: 4, target_duration_min: 30, structure: [] }, null), 1800)
+assert.equal(sessionTimeSec({ target_distance_km: 4, target_duration_min: null, structure: [] }, null), null)
 
 console.log('semaine : tous les tests passent')

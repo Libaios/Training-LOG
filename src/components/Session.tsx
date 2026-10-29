@@ -1,6 +1,6 @@
-import { fmtTarget, sessionTarget, useCoach } from '../lib/coach'
+import { fmtTarget, sessionTarget, sessionTimeSec, useCoach } from '../lib/coach'
 import { zoneLabel, type Zone } from '../lib/pace'
-import { fmtDate, fmtPace, fmtWeekday, fromISODate, paceOf } from '../lib/format'
+import { fmtClock, fmtDate, fmtMinutes, fmtPace, fmtWeekday, fromISODate, paceOf } from '../lib/format'
 import { useStore } from '../lib/store'
 import { SESSION_KIND, sessionTone, sessionTypeLabel, type PlanSession, type StructureStep } from '../lib/types'
 import { Icon } from './Icon'
@@ -60,10 +60,12 @@ export function KeyPace({ session }: { session: PlanSession }) {
   const tone = sessionTone(session.session_type)
   const step = keyStep(session.structure, tone === 'quality' || tone === 'race')
   const quality = step && QUALITY_ZONES.includes(step.zone) && session.structure.length > 1
-  if (!target && !step) return null
+  const time = session.target_duration_min ? null : sessionTimeSec(session, paces)
+  const head = [target, time !== null ? `environ ${fmtMinutes(time)}` : ''].filter(Boolean).join(', ')
+  if (!head && !step) return null
   return (
     <div className={`key-pace tone-${tone}`}>
-      {target && <span className="today-target">{target}</span>}
+      {head && <span className="today-target">{head}</span>}
       {step && (
         <span className="key-pace-value">
           <strong>{paces ? `${fmtTarget(paces[step.zone])} /km` : ZONE_FEEL[step.zone]}</strong>
@@ -114,6 +116,7 @@ export function SessionRow({ session }: { session: PlanSession }) {
   const run = session.run_id ? runs.find((r) => r.id === session.run_id) : undefined
   const step = keyStep(session.structure, tone === 'quality' || tone === 'race')
   const quality = step && QUALITY_ZONES.includes(step.zone) && session.structure.length > 1
+  const time = sessionTimeSec(session, paces)
   return (
     <a className={`list-row session-row is-${session.status}`} href={`#/seance/${session.id}`}>
       {session.flexible ? (
@@ -128,7 +131,7 @@ export function SessionRow({ session }: { session: PlanSession }) {
         <span className="row-title">{session.title}</span>
         <span className="row-sub">
           {run
-            ? `Faite ${fmtDate(run.performed_on).toLowerCase()}, ${fmtPace(paceOf(run.distance_km, run.duration_sec))} /km`
+            ? `Faite ${fmtDate(run.performed_on).toLowerCase()} en ${fmtClock(run.duration_sec)}, ${fmtPace(paceOf(run.distance_km, run.duration_sec))} /km`
             : `${sessionTypeLabel(session.session_type)}${target ? `, ${target}` : ''}`}
           {session.locked ? ', modifiée par toi' : ''}
         </span>
@@ -136,6 +139,12 @@ export function SessionRow({ session }: { session: PlanSession }) {
           <span className={`row-pace tone-${tone}`}>
             {quality && <span>{zoneLabel(step.zone)} </span>}
             <strong>{paces ? `${fmtTarget(paces[step.zone])} /km` : ZONE_FEEL[step.zone]}</strong>
+            {time !== null && <span className="row-time">, environ {fmtMinutes(time)}</span>}
+          </span>
+        )}
+        {!run && session.status !== 'sautee' && !step && time !== null && (
+          <span className={`row-pace tone-${tone}`}>
+            <span className="row-time">Environ {fmtMinutes(time)}</span>
           </span>
         )}
       </span>

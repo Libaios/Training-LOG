@@ -120,3 +120,26 @@ export function capitalize(s: string): string {
 export function plural(n: number, singular: string, pluralForm = `${singular}s`): string {
   return `${fmtInt(n)} ${n > 1 ? pluralForm : singular}`
 }
+
+/** Durée de séance arrondie à la minute : "45 min", "1 h 05". */
+export function fmtMinutes(totalSec: number): string {
+  const m = Math.round(totalSec / 60)
+  return m >= 60 ? `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, '0')}` : `${m} min`
+}
+
+/** Secondes → champs h / min / s d'une saisie. */
+export function clockFields(totalSec: number): { hours: string; minutes: string; seconds: string } {
+  const s = Math.round(totalSec)
+  return {
+    hours: s >= 3600 ? String(Math.floor(s / 3600)) : '',
+    minutes: String(Math.floor((s % 3600) / 60)),
+    seconds: String(s % 60),
+  }
+}
+
+/** Allure (s/km) → champs min / s d'une saisie. */
+export function paceFields(secPerKm: number): { min: string; sec: string } {
+  if (!Number.isFinite(secPerKm) || secPerKm <= 0) return { min: '', sec: '' }
+  const t = Math.round(secPerKm)
+  return { min: String(Math.floor(t / 60)), sec: String(t % 60).padStart(2, '0') }
+}

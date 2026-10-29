@@ -2,13 +2,14 @@ import { useState } from 'react'
 import { Empty, PageHeader } from '../components/Layout'
 import { Icon } from '../components/Icon'
 import { SessionRow } from '../components/Session'
-import { groupByWeek, plannedKm, runsKmBetween, WEEK_RULES } from '../lib/coach'
+import { groupByWeek, plannedKm, runsKmBetween, sessionTimeSec, useCoach, WEEK_RULES } from '../lib/coach'
 import { useStore } from '../lib/store'
-import { addDays, fmt1, fmtDateShort, todayISO, weekStart } from '../lib/format'
+import { addDays, fmt1, fmtDateShort, fmtMinutes, todayISO, weekStart } from '../lib/format'
 import { phaseLabel } from '../lib/types'
 
 export function Plan() {
   const { plan, runs } = useStore()
+  const { paces } = useCoach()
   const [showPast, setShowPast] = useState(false)
   const currentMonday = weekStart(todayISO())
   const weeks = groupByWeek(plan)
@@ -57,6 +58,9 @@ export function Plan() {
           )}
           {visible.map((w) => {
             const km = plannedKm(w.sessions)
+            const time = w.sessions
+              .filter((s) => s.status !== 'sautee')
+              .reduce((sum, s) => sum + (sessionTimeSec(s, paces) ?? 0), 0)
             const done = runsKmBetween(runs, w.monday, addDays(w.monday, 7))
             const isCurrent = w.monday === currentMonday
             const phase = w.sessions.find((s) => s.phase)?.phase ?? null
@@ -76,6 +80,7 @@ export function Plan() {
                   </div>
                   <div className="plan-week-km">
                     <strong>{fmt1(km)} km</strong>
+                    {time > 0 && <span className="muted">environ {fmtMinutes(time)}</span>}
                     {w.monday <= currentMonday && <span className="muted">{fmt1(done)} faits</span>}
                   </div>
                 </div>

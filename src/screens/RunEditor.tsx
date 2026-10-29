@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
 import { EditorHeader, Empty } from '../components/Layout'
 import { Icon } from '../components/Icon'
+import { PaceInput, paceFromFields } from '../components/PaceInput'
 import { runDraftDuration, useStore } from '../lib/store'
 import { errorMessage } from '../lib/supabase'
-import { addDays, fmt1, fmtDate, fmtDateLong, fmtPace, parseDecimal, parseIntOrNull, toInput, todayISO, weekStart } from '../lib/format'
+import { addDays, clockFields, fmt1, fmtDate, fmtDateLong, fmtPace, paceFields, parseDecimal, parseIntOrNull, toInput, todayISO, weekStart } from '../lib/format'
 import { RUN_TYPES, runTypeForSession, type PlanSession, type Run, type RunDraft } from '../lib/types'
 import { useToast } from '../lib/ui'
 import { navigate } from '../lib/router'
@@ -67,6 +68,9 @@ export function RunEditor({ id, sessionId }: { id?: string; sessionId?: string }
   const [draft, setDraft] = useState<RunDraft>(() =>
     existing ? draftFromRun(existing) : fromSession ? draftFromSession(fromSession) : newDraft(),
   )
+  const [pace, setPace] = useState(() => paceFields(existing ? existing.duration_sec / existing.distance_km : NaN))
+  // Le dernier champ rempli entre durée et rythme : l'autre se calcule.
+  const [driver, setDriver] = useState<'duration' | 'pace'>('duration')
   const [loadedId, setLoadedId] = useState<string | undefined>(existing?.id)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -74,6 +78,7 @@ export function RunEditor({ id, sessionId }: { id?: string; sessionId?: string }
   useEffect(() => {
     if (existing && loadedId !== existing.id) {
       setDraft(draftFromRun(existing))
+      setPace(paceFields(existing.duration_sec / existing.distance_km))
       setLoadedId(existing.id)
     }
   }, [existing, loadedId])
@@ -90,6 +95,37 @@ export function RunEditor({ id, sessionId }: { id?: string; sessionId?: string }
 
   const update = (patch: Partial<RunDraft>) => setDraft((d) => ({ ...d, ...patch }))
 
+  /** Durée saisie : le rythme suit. */
+  function updateDuration(patch: Partial<Pick<RunDraft, 'hours' | 'minutes' | 'seconds'>>) {
+    const next = { ...draft, ...patch }
+    const km = parseDecimal(next.distance)
+    const sec = runDraftDuration(next)
+    setDriver('duration')
+    setDraft(next)
+    if (km && sec > 0) setPace(paceFields(sec / km))
+  }
+
+  /** Rythme saisi : la durée suit (si la distance est connue). */
+  function updatePace(min: string, sec: string) {
+    setPace({ min, sec })
+    setDriver('pace')
+    const p = paceFromFields(min, sec)
+    const km = parseDecimal(draft.distance)
+    if (p && km) update(clockFields(p * km))
+  }
+
+  /** Distance saisie : on recalcule le champ qui n'a pas été rempli à la main. */
+  function updateDistance(distance: string) {
+    const km = parseDecimal(distance)
+    const p = paceFromFields(pace.min, pace.sec)
+    const sec = runDraftDuration(draft)
+    if (driver === 'pace' && p && km) update({ distance, ...clockFields(p * km) })
+    else {
+      update({ distance })
+      if (km && sec > 0) setPace(paceFields(sec / km))
+    }
+  }
+
   // Séances encore à faire (ou déjà liées à cette sortie) : celles de la même semaine pour les jours libres,
   // celles à 3 jours près pour les séances à date fixe.
   const candidates = draft.performedOn
@@ -104,7 +140,7 @@ export function RunEditor({ id, sessionId }: { id?: string; sessionId?: string }
   const linked = draft.plannedSessionId ? store.sessionById.get(draft.plannedSessionId) : undefined
   const distance = parseDecimal(draft.distance)
   const duration = runDraftDuration(draft)
-  const pace = distance && duration ? duration / distance : NaN
+  const paceSec = distance && duration ? duration / distance : NaN
   const speed = distance && duration ? distance / (duration / 3600) : NaN
 
   function validate(): string | null {
@@ -215,7 +251,7 @@ export function RunEditor({ id, sessionId }: { id?: string; sessionId?: string }
           inputMode="decimal"
           placeholder="Ex. 8,5"
           value={draft.distance}
-          onChange={(e) => update({ distance: e.target.value.replace(/[^\d.,]/g, '') })}
+          onChange={(e) => updateDistance(e.target.value.replace(/[^\d.,]/g, ''))}
         />
       </label>
 
@@ -223,7 +259,7 @@ export function RunEditor({ id, sessionId }: { id?: string; sessionId?: string }
         <legend>Durée</legend>
         <div className="duration">
           <label>
-            <input inputMode="numeric" placeholder="0" value={draft.hours} onChange={(e) => update({ hours: digits(e.target.value) })} />
+            <input inputMode="numeric" placeholder="0" value={draft.hours} onChange={(e) => updateDuration({ hours: digits(e.target.value) })} />
             <span>h</span>
           </label>
           <label>
@@ -231,7 +267,7 @@ export function RunEditor({ id, sessionId }: { id?: string; sessionId?: string }
               inputMode="numeric"
               placeholder="00"
               value={draft.minutes}
-              onChange={(e) => update({ minutes: digits(e.target.value) })}
+              onChange={(e) => updateDuration({ minutes: digits(e.target.value) })}
             />
             <span>min</span>
           </label>
@@ -240,16 +276,19 @@ export function RunEditor({ id, sessionId }: { id?: string; sessionId?: string }
               inputMode="numeric"
               placeholder="00"
               value={draft.seconds}
-              onChange={(e) => update({ seconds: digits(e.target.value) })}
+              onChange={(e) => updateDuration({ seconds: digits(e.target.value) })}
             />
             <span>s</span>
           </label>
         </div>
       </fieldset>
 
+      <PaceInput min={pace.min} sec={pace.sec} onChange={updatePace} />
+      <p className="muted field-hint">Remplis la durée ou le rythme : l’autre se calcule avec la distance.</p>
+
       <div className="pace-readout" aria-live="polite">
         <div>
-          <span className="pace-value">{fmtPace(pace)}</span>
+          <span className="pace-value">{fmtPace(paceSec)}</span>
           <span className="pace-unit">min/km</span>
         </div>
         <div>

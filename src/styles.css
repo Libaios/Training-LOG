@@ -2552,3 +2552,19 @@ body:has(.save-bar) .toast-region {
 .recap-row .spinner {
   flex-shrink: 0;
 }
+
+/* Saisie du rythme : min et s, puis l'unité. */
+.duration.pace-input {
+  grid-template-columns: 1fr 1fr auto;
+  align-items: center;
+}
+
+.pace-input-unit {
+  font-size: 15px;
+  padding-right: 4px;
+}
+
+.field-hint {
+  margin: -4px 0 0;
+  font-size: 14px;
+}

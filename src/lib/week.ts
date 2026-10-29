@@ -164,3 +164,36 @@ export function sessionTarget(s: Pick<PlanSession, 'target_distance_km' | 'targe
   return parts.join(', ')
 }
 
+
+/** Récup écrite à la main (« 2 min trot », « 1 min 30 », « 45 s ») → secondes, null si illisible. */
+export function recoverySec(text: string | undefined): number | null {
+  if (!text) return null
+  const min = text.match(/(\d+(?:[.,]\d+)?)\s*min(?:\s*(\d+)(?!\s*m\b))?/)
+  if (min) return Math.round(Number(min[1].replace(',', '.')) * 60 + (min[2] ? Number(min[2]) : 0))
+  const sec = text.match(/(\d+)\s*s\b/)
+  return sec ? Number(sec[1]) : null
+}
+
+/**
+ * Temps total estimé d'une séance (s) : la durée cible si elle est fixée, sinon la somme des étapes
+ * (durée, ou distance × allure de la zone, récups comprises), sinon la distance à allure facile.
+ */
+export function sessionTimeSec(
+  s: Pick<PlanSession, 'structure' | 'target_distance_km' | 'target_duration_min'>,
+  paces: Partial<Record<'X' | 'E' | 'S' | 'T' | 'I' | 'R', { target: number }>> | null,
+): number | null {
+  if (s.target_duration_min) return s.target_duration_min * 60
+  let total = 0
+  let ok = s.structure.length > 0
+  for (const step of s.structure) {
+    const n = step.repeat ?? 1
+    const pace = step.zone ? paces?.[step.zone]?.target : paces?.E?.target
+    if (step.duration_min) total += step.duration_min * 60 * n
+    else if (step.distance_km && pace) total += step.distance_km * pace * n
+    else ok = false
+    if (n > 1) total += (recoverySec(step.recovery) ?? 0) * (n - 1)
+  }
+  if (ok && total > 0) return total
+  const easy = paces?.E?.target
+  return s.target_distance_km && easy ? s.target_distance_km * easy : null
+}

@@ -1,13 +1,14 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { PageHeader } from '../components/Layout'
 import { Icon } from '../components/Icon'
+import { PaceInput, paceFromFields } from '../components/PaceInput'
 import { recapOf } from '../lib/recap'
 import { fmtTarget, parseClock, useCoach } from '../lib/coach'
 import { goalGap, vdotOf, ZONES } from '../lib/pace'
 import { useStore } from '../lib/store'
 import { errorMessage } from '../lib/supabase'
 import { useToast } from '../lib/ui'
-import { fmt1, fmtClock, fmtDate, fmtPace, parseDecimal, toInput, todayISO } from '../lib/format'
+import { fmt1, fmtClock, fmtDate, fmtPace, paceFields, parseDecimal, toInput, todayISO } from '../lib/format'
 import type { Performance, RunnerProfile } from '../lib/types'
 
 const DISTANCES = [
@@ -121,7 +122,27 @@ function Performances() {
   const [other, setOther] = useState('')
   const [time, setTime] = useState('')
   const [kind, setKind] = useState<Performance['kind']>('course')
+  const [pace, setPace] = useState({ min: '', sec: '' })
   const [error, setError] = useState<string | null>(null)
+  const perfKm = km ?? parseDecimal(other)
+
+  // Temps ou rythme : l'autre se calcule avec la distance.
+  useEffect(() => {
+    const sec = parseClock(time)
+    if (sec && perfKm) setPace(paceFields(sec / perfKm))
+  }, [perfKm])
+
+  function changeTime(value: string) {
+    setTime(value)
+    const sec = parseClock(value)
+    if (sec && perfKm) setPace(paceFields(sec / perfKm))
+  }
+
+  function changePace(min: string, sec: string) {
+    setPace({ min, sec })
+    const p = paceFromFields(min, sec)
+    if (p && perfKm) setTime(fmtClock(p * perfKm))
+  }
 
   async function add(e: FormEvent) {
     e.preventDefault()
@@ -135,6 +156,7 @@ function Performances() {
     try {
       await addPerformance({ performed_on: date, distance_km: distance, time_sec: sec, kind, notes: null })
       setTime('')
+      setPace({ min: '', sec: '' })
       toast('Perf ajoutée, allures mises à jour')
     } catch (err) {
       setError(errorMessage(err))
@@ -189,13 +211,14 @@ function Performances() {
         <div className="form-grid even">
           <label className="field">
             <span>Temps</span>
-            <input inputMode="numeric" placeholder="52:30 ou 1:54:10" value={time} onChange={(e) => setTime(e.target.value.replace(/[^\d:]/g, ''))} />
+            <input inputMode="numeric" placeholder="52:30 ou 1:54:10" value={time} onChange={(e) => changeTime(e.target.value.replace(/[^\d:]/g, ''))} />
           </label>
           <label className="field">
             <span>Date</span>
             <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
           </label>
         </div>
+        <PaceInput min={pace.min} sec={pace.sec} onChange={changePace} />
         <label className="field">
           <span>Contexte</span>
           <select value={kind} onChange={(e) => setKind(e.target.value as Performance['kind'])}>
@@ -248,6 +271,21 @@ function GoalAndAvailability({ profile }: { profile: RunnerProfile }) {
   const [busy, setBusy] = useState(false)
   useEffect(() => setForm(formFrom(profile)), [profile])
   const update = (patch: Partial<ProfileForm>) => setForm((f) => ({ ...f, ...patch }))
+  const raceKm = profile.race_distance_km ?? 21.0975
+  const [goalPace, setGoalPace] = useState(() => paceFields(profile.goal_time_sec ? profile.goal_time_sec / raceKm : NaN))
+  useEffect(() => setGoalPace(paceFields(profile.goal_time_sec ? profile.goal_time_sec / raceKm : NaN)), [profile, raceKm])
+
+  function changeGoal(goal: string) {
+    update({ goal })
+    const sec = parseClock(goal)
+    if (sec) setGoalPace(paceFields(sec / raceKm))
+  }
+
+  function changeGoalPace(min: string, sec: string) {
+    setGoalPace({ min, sec })
+    const p = paceFromFields(min, sec)
+    if (p) update({ goal: fmtClock(p * raceKm) })
+  }
 
   async function save(e: FormEvent) {
     e.preventDefault()
@@ -287,9 +325,10 @@ function GoalAndAvailability({ profile }: { profile: RunnerProfile }) {
         </label>
         <label className="field">
           <span>Temps visé</span>
-          <input inputMode="numeric" placeholder="1:55:00" value={form.goal} onChange={(e) => update({ goal: e.target.value.replace(/[^\d:]/g, '') })} />
+          <input inputMode="numeric" placeholder="1:55:00" value={form.goal} onChange={(e) => changeGoal(e.target.value.replace(/[^\d:]/g, ''))} />
         </label>
       </div>
+      <PaceInput legend="Rythme visé (min/km)" min={goalPace.min} sec={goalPace.sec} onChange={changeGoalPace} />
 
       <h2>Séances</h2>
       <label className="field">

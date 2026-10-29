@@ -1,12 +1,13 @@
 import { useState } from 'react'
 import { EditorHeader, Empty } from '../components/Layout'
 import { Icon } from '../components/Icon'
+import { PaceInput, paceFromFields } from '../components/PaceInput'
 import { KeyPace, SessionSteps, SessionTag } from '../components/Session'
 import { SessionComments } from '../components/SessionComments'
 import { sessionTarget, weekLabel } from '../lib/coach'
 import { useStore, type SessionPatch } from '../lib/store'
 import { errorMessage } from '../lib/supabase'
-import { addDays, fmt1, fmtClock, fmtDate, fmtDateLong, fmtPace, paceOf, parseDecimal, parseIntOrNull, toInput, todayISO, weekStart } from '../lib/format'
+import { addDays, fmt1, fmtClock, fmtDate, fmtDateLong, fmtPace, paceFields, paceOf, parseDecimal, parseIntOrNull, toInput, todayISO, weekStart } from '../lib/format'
 import { SESSION_TYPES, type PlanSession, type SessionType } from '../lib/types'
 import { useToast } from '../lib/ui'
 import { navigate } from '../lib/router'
@@ -31,12 +32,20 @@ const formFrom = (s?: PlanSession): Form => ({
   description: s?.description ?? '',
 })
 
+function paceFromForm(f: Form): number {
+  const km = parseDecimal(f.distance)
+  const min = parseIntOrNull(f.duration)
+  return km && min ? (min * 60) / km : NaN
+}
+
 export function SessionDetail({ id }: { id?: string }) {
   const store = useStore()
   const toast = useToast()
   const session = id ? store.sessionById.get(id) : undefined
   const [editing, setEditing] = useState(!id)
   const [form, setForm] = useState<Form>(() => formFrom(session))
+  const [pace, setPace] = useState(() => paceFields(paceFromForm(formFrom(session))))
+  const [driver, setDriver] = useState<'duration' | 'pace'>('duration')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -52,6 +61,40 @@ export function SessionDetail({ id }: { id?: string }) {
 
   const run = session?.run_id ? store.runs.find((r) => r.id === session.run_id) : undefined
   const update = (patch: Partial<Form>) => setForm((f) => ({ ...f, ...patch }))
+
+  // Distance, durée, rythme : deux suffisent, le troisième se calcule.
+  function updateDistance(distance: string) {
+    const km = parseDecimal(distance)
+    const p = paceFromFields(pace.min, pace.sec)
+    if (driver === 'pace' && p && km) update({ distance, duration: String(Math.round((p * km) / 60)) })
+    else {
+      update({ distance })
+      const min = parseIntOrNull(form.duration)
+      if (km && min) setPace(paceFields((min * 60) / km))
+    }
+  }
+
+  function updateDuration(duration: string) {
+    setDriver('duration')
+    const km = parseDecimal(form.distance)
+    const min = parseIntOrNull(duration)
+    const p = paceFromFields(pace.min, pace.sec)
+    if (km && min) {
+      update({ duration })
+      setPace(paceFields((min * 60) / km))
+    } else if (!form.distance.trim() && p && min) update({ duration, distance: toInput(Math.round(((min * 60) / p) * 10) / 10) })
+    else update({ duration })
+  }
+
+  function updatePace(min: string, sec: string) {
+    setPace({ min, sec })
+    setDriver('pace')
+    const p = paceFromFields(min, sec)
+    const km = parseDecimal(form.distance)
+    const duration = parseIntOrNull(form.duration)
+    if (p && km) update({ duration: String(Math.round((p * km) / 60)) })
+    else if (p && duration) update({ distance: toInput(Math.round(((duration * 60) / p) * 10) / 10) })
+  }
 
   async function act(fn: () => Promise<unknown>, message: string, back?: string) {
     setBusy(true)
@@ -167,13 +210,15 @@ export function SessionDetail({ id }: { id?: string }) {
         <div className="form-grid even">
           <label className="field">
             <span>Distance (km)</span>
-            <input inputMode="decimal" value={form.distance} onChange={(e) => update({ distance: e.target.value.replace(/[^\d.,]/g, '') })} />
+            <input inputMode="decimal" value={form.distance} onChange={(e) => updateDistance(e.target.value.replace(/[^\d.,]/g, ''))} />
           </label>
           <label className="field">
             <span>Durée (min)</span>
-            <input inputMode="numeric" value={form.duration} onChange={(e) => update({ duration: e.target.value.replace(/[^\d]/g, '') })} />
+            <input inputMode="numeric" value={form.duration} onChange={(e) => updateDuration(e.target.value.replace(/[^\d]/g, ''))} />
           </label>
         </div>
+        <PaceInput min={pace.min} sec={pace.sec} onChange={updatePace} />
+        <p className="muted field-hint">Deux champs sur trois suffisent : distance, durée ou rythme, le dernier se calcule.</p>
         <label className="field">
           <span>Description</span>
           <textarea rows={3} value={form.description} onChange={(e) => update({ description: e.target.value })} />
@@ -243,7 +288,7 @@ export function SessionDetail({ id }: { id?: string }) {
             Je l’ai faite
           </a>
         )}
-        <button type="button" className="btn btn-outline btn-block" onClick={() => { setForm(formFrom(s)); setEditing(true) }}>
+        <button type="button" className="btn btn-outline btn-block" onClick={() => { setForm(formFrom(s)); setPace(paceFields(paceFromForm(formFrom(s)))); setDriver('duration'); setEditing(true) }}>
           Modifier
         </button>
         {s.status === 'prevue' && (
