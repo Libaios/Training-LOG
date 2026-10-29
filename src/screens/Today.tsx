@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Icon } from '../components/Icon'
 import { KeyPace, SessionSteps } from '../components/Session'
 import { SessionComments } from '../components/SessionComments'
@@ -6,11 +7,20 @@ import { useStore } from '../lib/store'
 import { addDays, fmt1, fmtClock, fmtDate, fmtPace, paceOf, todayISO, weekStart } from '../lib/format'
 import { phaseLabel, runTypeLabel, SESSION_KIND, sessionTone, type PlanSession } from '../lib/types'
 
-const NOTE_LABEL = { plan: 'Plan', bilan: 'Bilan', reprogrammation: 'Réajustement', conseil: 'Conseil' } as const
-
-const excerpt = (text: string, max = 220) => {
-  const flat = text.replace(/\s+/g, ' ').trim()
-  return flat.length > max ? `${flat.slice(0, max).replace(/\s+\S*$/, '')}…` : flat
+/** Consigne du coach sur une séance : deux lignes, le reste en la touchant. */
+function CoachTip({ text }: { text: string }) {
+  const [open, setOpen] = useState(false)
+  if (text.length <= 110) return <p className="coach-quote">{text}</p>
+  return (
+    <button
+      type="button"
+      className={`coach-quote coach-tip${open ? ' is-open' : ''}`}
+      aria-expanded={open}
+      onClick={() => setOpen(!open)}
+    >
+      <span className="coach-tip-text">{text}</span>
+    </button>
+  )
 }
 
 /** Une séance de la semaine : à faire (déroulé + bouton), faite ou sautée. */
@@ -45,8 +55,8 @@ function WeekSession({ session }: { session: PlanSession }) {
       ) : (
         <>
           {session.structure.length > 1 && <SessionSteps steps={session.structure} />}
-          {session.coach_comment && <p className="coach-quote">{session.coach_comment}</p>}
-          <div className="today-actions">
+          {session.coach_comment && <CoachTip text={session.coach_comment} />}
+          <SessionComments session={session} recap>
             <a className="btn btn-primary" href={`#/course/nouvelle/${session.id}`}>
               <Icon name="check" size={18} />
               Je l’ai faite
@@ -54,8 +64,7 @@ function WeekSession({ session }: { session: PlanSession }) {
             <a className="btn btn-text" href={`#/seance/${session.id}`}>
               Détails
             </a>
-          </div>
-          <SessionComments session={session} recap />
+          </SessionComments>
         </>
       )}
     </article>
@@ -78,6 +87,7 @@ export function Today() {
   const counted = week.filter((s) => s.status !== 'sautee').length
   const extra = runs.filter((r) => r.performed_on >= monday && r.performed_on < nextMonday && !r.planned_session_id)
   const note = coachNotes[0]
+  const unread = coachNotes.filter((n) => !n.read).length
   const hasPlan = plan.some((s) => s.scheduled_on >= monday)
   // Phrase d'accueil du coach, réécrite chaque soir : masquée si la revue ne l'a pas renouvelée depuis 3 jours.
   const welcome =
@@ -105,6 +115,15 @@ export function Today() {
           </p>
         )}
         {welcome && <p className="today-welcome">{welcome}</p>}
+        {note && (
+          <a className={`coach-line${unread ? ' is-new' : ''}`} href="#/coach">
+            <Icon name="message" size={18} />
+            <span className="coach-line-text">
+              <strong>{unread > 1 ? `${unread} nouveaux messages` : unread ? 'Nouveau' : 'Le coach'} :</strong> {note.title}
+            </span>
+            <Icon name="chevron" size={16} />
+          </a>
+        )}
       </header>
 
       {!hasPlan ? (
@@ -154,20 +173,6 @@ export function Today() {
             )}
           </section>
         </>
-      )}
-
-      {note && (
-        <section className="section">
-          <h2>Le mot du coach</h2>
-          <a className={`note note-link${note.read ? '' : ' is-new'}`} href="#/coach">
-            <span className="note-head">
-              <span className="stag stag-neutral">{NOTE_LABEL[note.kind]}</span>
-              <span className="muted">{note.read ? fmtDate(note.created_at.slice(0, 10)) : 'Nouveau'}</span>
-            </span>
-            <strong className="note-title">{note.title}</strong>
-            <span className="muted">{excerpt(note.body, 140)}</span>
-          </a>
-        </section>
       )}
 
       <a className="btn btn-outline btn-block" href="#/course/nouvelle">

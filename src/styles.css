@@ -1652,6 +1652,26 @@ body:has(.save-bar) .toast-region {
   align-self: center;
 }
 
+/* Échanges d'une séance de l'accueil : repliés derrière une bulle, au bout des actions */
+.today-actions .comment-toggle {
+  margin-left: auto;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 8px;
+  gap: 4px;
+  color: var(--muted);
+}
+
+.comment-toggle.is-open {
+  color: var(--strength);
+}
+
+.comment-count {
+  font-size: 15px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
 .done-line {
   display: flex;
   align-items: center;
@@ -1689,6 +1709,76 @@ body:has(.save-bar) .toast-region {
 .coach-quote::before {
   content: 'Le coach : ';
   font-weight: 600;
+}
+
+/* Consigne longue sur l'accueil : deux lignes, le reste en la touchant */
+.coach-tip {
+  display: block;
+  width: 100%;
+  border: 0;
+  text-align: left;
+  line-height: 1.4;
+}
+
+.coach-tip::before {
+  content: none;
+}
+
+.coach-tip-text {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+.coach-tip-text::before {
+  content: 'Le coach : ';
+  font-weight: 600;
+}
+
+.coach-tip.is-open .coach-tip-text {
+  display: block;
+}
+
+/* Accueil : dernier message du coach, en une ligne sous sa phrase */
+.coach-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 6px;
+  padding: 10px 12px;
+  min-height: 44px;
+  border-radius: var(--r);
+  background: var(--surface);
+  border: 1.5px solid var(--line);
+  font-size: 15px;
+}
+
+.coach-line > svg {
+  flex-shrink: 0;
+  color: var(--muted);
+}
+
+.coach-line-text {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.coach-line-text strong {
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.coach-line.is-new {
+  border-color: var(--strength);
+}
+
+.coach-line.is-new > svg:first-child,
+.coach-line.is-new .coach-line-text strong {
+  color: var(--strength);
 }
 
 .coach-banner {
@@ -2358,15 +2448,6 @@ body:has(.save-bar) .toast-region {
 .step-I .step-feel,
 .step-R .step-feel {
   color: var(--run-strong);
-}
-
-.note-link {
-  color: var(--ink);
-}
-
-.note-title {
-  font-size: 19px;
-  line-height: 1.2;
 }
 
 .rules {
