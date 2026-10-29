@@ -1,9 +1,11 @@
+import { useState } from 'react'
 import { Icon } from '../components/Icon'
 import { SessionRow, SessionSteps, SessionTag } from '../components/Session'
 import { daysUntil, plannedKm, runsKmBetween, sessionTarget, useCoach } from '../lib/coach'
 import { useStore } from '../lib/store'
 import { addDays, fmt1, fmtClock, fmtDate, fmtDateLong, fmtPace, fmtWeekday, fromISODate, paceOf, todayISO, weekStart } from '../lib/format'
 import { phaseLabel, runTypeLabel, sessionTone, type PlanSession, type Run } from '../lib/types'
+import { recapOf } from '../lib/recap'
 import { useToast } from '../lib/ui'
 import { errorMessage } from '../lib/supabase'
 
@@ -102,22 +104,32 @@ function SessionCard({ session }: { session: PlanSession }) {
   )
 }
 
+const firstLines = (text: string, max = 160) => {
+  const flat = text.replace(/\s+/g, ' ').trim()
+  return flat.length > max ? `${flat.slice(0, max).replace(/\s+\S*$/, '')}…` : flat
+}
+
 export function Today() {
   const { profile, plan, runs, coachNotes, coachRequests, performances } = useStore()
   const { vdot } = useCoach()
   const today = todayISO()
-  const monday = weekStart(today)
+  const [offset, setOffset] = useState(0)
+  const thisMonday = weekStart(today)
+  const monday = addDays(thisMonday, offset * 7)
   const weekSessions = plan.filter((s) => s.scheduled_on >= monday && s.scheduled_on < addDays(monday, 7))
   const todaySessions = plan.filter((s) => s.scheduled_on === today)
   const next = plan.find((s) => s.scheduled_on > today && s.status === 'prevue')
   const unread = coachNotes.filter((n) => !n.read)
   const pending = coachRequests.filter((r) => r.status === 'en_attente')
   const raceIn = profile ? daysUntil(profile.race_date) : null
-  const current = todaySessions[0] ?? weekSessions.find((s) => s.scheduled_on >= today)
+  const current = todaySessions[0] ?? plan.find((s) => s.scheduled_on >= today)
   const phase = current?.phase ?? null
   const weekNumber = current?.week_number ?? null
   const doneKm = runsKmBetween(runs, monday, addDays(monday, 7))
   const futurePlan = plan.some((s) => s.scheduled_on >= today)
+  const advice = coachNotes.filter((n) => n.kind !== 'plan').slice(0, 2)
+  const recap = recapOf(runs)
+  const lastRuns = runs.slice(0, 3)
 
   return (
     <main className="screen">
@@ -196,10 +208,23 @@ export function Today() {
       {futurePlan && (
         <section className="section">
           <div className="section-head">
-            <h2>Cette semaine</h2>
+            <h2>{offset === 0 ? 'Cette semaine' : `Semaine du ${fmtDate(monday)}`}</h2>
             <span className="muted">
               {fmt1(doneKm)} / {fmt1(plannedKm(weekSessions))} km
             </span>
+          </div>
+          <div className="week-nav">
+            <button type="button" className="btn btn-outline btn-small" onClick={() => setOffset(offset - 1)}>
+              ‹ Semaine précédente
+            </button>
+            {offset !== 0 && (
+              <button type="button" className="btn btn-text btn-small" onClick={() => setOffset(0)}>
+                Aujourd’hui
+              </button>
+            )}
+            <button type="button" className="btn btn-outline btn-small" onClick={() => setOffset(offset + 1)}>
+              Suivante ›
+            </button>
           </div>
           <PlanWeek monday={monday} sessions={weekSessions} runs={runs} />
           <ul className="list compact">
@@ -235,6 +260,63 @@ export function Today() {
           </ul>
         </section>
       )}
+
+      {advice.length > 0 && (
+        <section className="section">
+          <div className="section-head">
+            <h2>Conseils du coach</h2>
+            <a href="#/coach">Tout voir</a>
+          </div>
+          <ul className="list compact">
+            {advice.map((n) => (
+              <li key={n.id}>
+                <a className="list-row" href="#/coach">
+                  <span className="row-main">
+                    <span className="row-title">{n.title}</span>
+                    <span className="row-sub">{firstLines(n.body)}</span>
+                  </span>
+                </a>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      <section className="section">
+        <div className="section-head">
+          <h2>Dernières sorties</h2>
+          <a href="#/course">Tout l’historique</a>
+        </div>
+        {lastRuns.length === 0 ? (
+          <p className="muted">Aucune sortie pour l’instant.</p>
+        ) : (
+          <>
+            <p className="muted">
+              4 dernières semaines : {fmt1(recap.km)} km en {recap.runs} {recap.runs > 1 ? 'sorties' : 'sortie'}.
+            </p>
+            <ul className="list compact">
+              {lastRuns.map((r) => (
+                <li key={r.id}>
+                  <a className="list-row" href={`#/course/${r.id}`}>
+                    <span className="date-chip date-chip-run">
+                      <span>{fmtWeekday(r.performed_on)}</span>
+                      <strong>{fromISODate(r.performed_on).getDate()}</strong>
+                    </span>
+                    <span className="row-main">
+                      <span className="row-title">
+                        {fmt1(r.distance_km)} km, {runTypeLabel(r.run_type).toLowerCase()}
+                      </span>
+                      <span className="row-sub">
+                        {fmtClock(r.duration_sec)}, {fmtPace(paceOf(r.distance_km, r.duration_sec))} /km
+                      </span>
+                    </span>
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+      </section>
 
       <a className="btn btn-outline btn-block" href="#/course/nouvelle">
         <Icon name="plus" size={18} />

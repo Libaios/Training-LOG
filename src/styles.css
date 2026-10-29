@@ -2175,3 +2175,55 @@ body:has(.save-bar) .toast-region {
 .request-kind {
   align-self: flex-start;
 }
+
+/* Récap du profil, accordéons, navigation de semaine */
+.recap-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+}
+
+.recap-grid > div {
+  display: flex;
+  flex-direction: column;
+  padding: 12px 10px;
+  background: var(--surface);
+  border-radius: var(--r);
+}
+
+.recap-grid strong {
+  font-family: var(--font-cond);
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.recap-grid .muted {
+  font-size: 13px;
+}
+
+.fold {
+  background: var(--surface);
+  border-radius: var(--r-lg);
+  padding: 4px 16px;
+}
+
+.fold > summary {
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.fold[open] {
+  padding-bottom: 16px;
+}
+
+.week-nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}

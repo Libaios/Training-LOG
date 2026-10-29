@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { PageHeader } from '../components/Layout'
 import { Icon } from '../components/Icon'
+import { recapOf } from '../lib/recap'
 import { fmtRange, ISO_DAYS, parseClock, useCoach } from '../lib/coach'
 import { goalGap, vdotOf, ZONES } from '../lib/pace'
 import { useStore } from '../lib/store'
@@ -32,7 +33,7 @@ function LevelCard() {
     return (
       <section className="level-card">
         <h2>Tes allures</h2>
-        <p className="muted">Ajoute une perf récente ci-dessous pour calculer tes allures d’entraînement.</p>
+        <p className="muted">Note une course ou une sortie à fond (ressenti 8/10 ou plus, 3 km minimum) : tes allures se calculent toutes seules.</p>
       </section>
     )
   }
@@ -72,7 +73,51 @@ function LevelCard() {
           ))}
         </tbody>
       </table>
-      <p className="muted chart-note">En min/km. Indice VDOT {fmt1(vdot)} (méthode Daniels), calculé sur ta meilleure perf des 90 derniers jours.</p>
+      <p className="muted chart-note">En min/km. Indice VDOT {fmt1(vdot)} (méthode Daniels), mis à jour automatiquement avec tes dernières courses et sorties à fond (90 derniers jours).</p>
+    </section>
+  )
+}
+
+function Recap() {
+  const { runs } = useStore()
+  const r = recapOf(runs)
+  const last = runs[0]
+  return (
+    <section className="section">
+      <div className="section-head">
+        <h2>Tes 4 dernières semaines</h2>
+        <a href="#/course">Historique</a>
+      </div>
+      {r.runs === 0 ? (
+        <p className="muted">Aucune sortie sur les 4 dernières semaines. Dès que tu en notes une, ce récap se met à jour tout seul.</p>
+      ) : (
+        <div className="recap-grid">
+          <div>
+            <strong>{fmt1(r.km)}</strong>
+            <span className="muted">km au total</span>
+          </div>
+          <div>
+            <strong>{r.runs}</strong>
+            <span className="muted">{r.runs > 1 ? 'sorties' : 'sortie'}</span>
+          </div>
+          <div>
+            <strong>{fmt1(r.weeklyKm)}</strong>
+            <span className="muted">km par semaine</span>
+          </div>
+          <div>
+            <strong>{fmt1(r.longestKm)}</strong>
+            <span className="muted">km, la plus longue</span>
+          </div>
+          <div>
+            <strong>{r.avgPace ? fmtPace(r.avgPace) : '–'}</strong>
+            <span className="muted">/km en moyenne</span>
+          </div>
+          <div>
+            <strong>{last ? fmtDate(last.performed_on) : '–'}</strong>
+            <span className="muted">dernière sortie</span>
+          </div>
+        </div>
+      )}
     </section>
   )
 }
@@ -107,8 +152,7 @@ function Performances() {
 
   return (
     <section className="section">
-      <h2>Tes perfs</h2>
-      <p className="muted">Une course récente, ou à défaut une sortie où tu as couru à fond sur 5 ou 10 km.</p>
+      <p className="muted">Facultatif : tes sorties comptent déjà. Utile pour une course faite ailleurs.</p>
       {performances.length > 0 && (
         <ul className="list compact">
           {performances.map((p) => (
@@ -337,9 +381,18 @@ export function Profile() {
   return (
     <main className="screen">
       <PageHeader title="Profil" />
+      <Recap />
       <LevelCard />
-      <Performances />
-      {profile && <GoalAndAvailability profile={profile} />}
+      <details className="fold">
+        <summary>Perfs saisies à la main</summary>
+        <Performances />
+      </details>
+      {profile && (
+        <details className="fold">
+          <summary>Objectif et disponibilités</summary>
+          <GoalAndAvailability profile={profile} />
+        </details>
+      )}
       <a className="btn btn-text" href="#/reglages">
         Exports et réglages
       </a>

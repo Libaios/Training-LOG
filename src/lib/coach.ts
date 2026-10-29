@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { useStore } from './store'
+import { effortPerfs } from './recap'
 import { pacesFor, predictTime, referenceVdot, type Paces, type PaceRange } from './pace'
 import { addDays, fmtPace, fromISODate, todayISO, weekStart } from './format'
 import type { PlanSession, Run, RunnerProfile } from './types'
@@ -13,9 +14,9 @@ export type CoachContext = {
 
 /** Niveau actuel et allures, recalculés dès qu'une perf ou l'objectif change. */
 export function useCoach(): CoachContext {
-  const { profile, performances } = useStore()
+  const { profile, performances, runs } = useStore()
   return useMemo(() => {
-    const ref = referenceVdot(performances)
+    const ref = referenceVdot([...performances, ...effortPerfs(runs)])
     if (!ref) return { profile, vdot: null, paces: null, predictedRaceSec: null }
     return {
       profile,
@@ -23,7 +24,7 @@ export function useCoach(): CoachContext {
       paces: pacesFor(ref.vdot, profile),
       predictedRaceSec: predictTime(ref.vdot, profile?.race_distance_km ?? 21.0975),
     }
-  }, [profile, performances])
+  }, [profile, performances, runs])
 }
 
 export const fmtRange = (r: PaceRange) => `${fmtPace(r.fast)}–${fmtPace(r.slow)}`
