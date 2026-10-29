@@ -269,11 +269,13 @@ function GoalAndAvailability({ profile }: { profile: RunnerProfile }) {
   const [form, setForm] = useState<ProfileForm>(() => formFrom(profile))
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
-  useEffect(() => setForm(formFrom(profile)), [profile])
+  // Rechargé seulement si le profil a vraiment changé (les données se rechargent chaque minute).
+  const profileKey = JSON.stringify(profile)
+  useEffect(() => setForm(formFrom(profile)), [profileKey])
   const update = (patch: Partial<ProfileForm>) => setForm((f) => ({ ...f, ...patch }))
   const raceKm = profile.race_distance_km ?? 21.0975
   const [goalPace, setGoalPace] = useState(() => paceFields(profile.goal_time_sec ? profile.goal_time_sec / raceKm : NaN))
-  useEffect(() => setGoalPace(paceFields(profile.goal_time_sec ? profile.goal_time_sec / raceKm : NaN)), [profile, raceKm])
+  useEffect(() => setGoalPace(paceFields(profile.goal_time_sec ? profile.goal_time_sec / raceKm : NaN)), [profile.goal_time_sec, raceKm])
 
   function changeGoal(goal: string) {
     update({ goal })

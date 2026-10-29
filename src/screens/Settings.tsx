@@ -207,7 +207,7 @@ function ExerciseRow({
   useEffect(() => {
     setName(exercise.name)
     setGroup(exercise.muscle_group ?? '')
-  }, [exercise])
+  }, [exercise.name, exercise.muscle_group])
 
   async function run(patch: Partial<Pick<Exercise, 'name' | 'muscle_group' | 'archived'>>, message: string) {
     try {

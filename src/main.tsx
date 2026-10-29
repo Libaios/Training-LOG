@@ -9,6 +9,9 @@ import '@fontsource/barlow-condensed/latin-700.css'
 import './styles.css'
 import { App } from './App'
 import { ToastProvider } from './lib/ui'
+import { watchAppUpdates } from './lib/pwa'
+
+watchAppUpdates()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

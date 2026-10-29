@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { supabase } from './supabase'
 import { parseDecimal, parseIntOrNull } from './format'
 import type {
@@ -249,10 +249,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
+  // Seul le dernier chargement lancé s'affiche : un chargement plus ancien qui finit après ne l'écrase pas.
+  const loadSeq = useRef(0)
   const reload = useCallback(async () => {
+    const seq = ++loadSeq.current
     try {
       setError(null)
-      setData(await loadAll())
+      const fresh = await loadAll()
+      if (seq === loadSeq.current) setData(fresh)
     } catch (err) {
       setError(err instanceof Error ? err.message : String((err as { message?: string })?.message ?? err))
     } finally {
@@ -262,6 +266,25 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     void reload()
+  }, [reload])
+
+  // Données à jour quand l'appli revient au premier plan, et chaque minute tant qu'elle est ouverte :
+  // ce que le coach change (ou ce qui est saisi sur un autre appareil) s'affiche sans actualiser.
+  useEffect(() => {
+    let last = Date.now()
+    const refresh = () => {
+      if (document.visibilityState !== 'visible' || Date.now() - last < 10000) return
+      last = Date.now()
+      void reload()
+    }
+    document.addEventListener('visibilitychange', refresh)
+    window.addEventListener('focus', refresh)
+    const id = window.setInterval(refresh, 60000)
+    return () => {
+      document.removeEventListener('visibilitychange', refresh)
+      window.removeEventListener('focus', refresh)
+      window.clearInterval(id)
+    }
   }, [reload])
 
   const saveWorkout = useCallback(
