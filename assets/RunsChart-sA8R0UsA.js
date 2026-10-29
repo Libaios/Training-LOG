@@ -1,0 +1,1 @@
+import{_ as e,h as t,m as n,x as r}from"./index-Dy-Asybo.js";import{n as i}from"./Charts-BFlkY3hH.js";import{l as a,o}from"./stats-DyNHuWJ_.js";var s=t();function c(){let{runs:t}=n(),c=a(t,o(12)).map(e=>({label:r(e.week),value:e.value}));return(0,s.jsx)(i,{data:c,tone:`run`,format:t=>`${e(t)} km`,summary:`Kilomètres courus par semaine`})}export{c as default};
