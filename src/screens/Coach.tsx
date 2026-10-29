@@ -41,7 +41,7 @@ const APP_TOAST: Partial<Record<FireStatus, string>> = {
   not_configured: 'Demande enregistrée, le lancement immédiat n’est pas configuré',
 }
 
-const APP_SUGGESTIONS = ['Mets la partie course en rouge au lieu du jaune', 'Agrandis le compte à rebours sur l’accueil']
+const APP_SUGGESTIONS = ['Mets la partie course en vert au lieu du rouge', 'Agrandis le compte à rebours sur l’accueil']
 
 type Mode = 'coach' | 'appli'
 

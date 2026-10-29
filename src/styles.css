@@ -1,5 +1,5 @@
 /* Carnet d'entraînement
-   Bleu = muscu, jaune = course : les deux couleurs portent l'information partout. */
+   Bleu = muscu, rouge = course : les deux couleurs portent l'information partout. */
 
 :root {
   color-scheme: light;
@@ -14,15 +14,15 @@
   --strength: #2a55cc;
   --strength-btn: #2a55cc;
   --strength-soft: #e4eafb;
-  --run-fill: #f2b705;
-  --run-strong: #8a5d00;
-  --run-soft: #fdf2cf;
-  --on-run: #15202b;
+  --run-fill: #d92d20;
+  --run-strong: #a31f14;
+  --run-soft: #fde8e6;
+  --on-run: #ffffff;
   --danger: #b42318;
   --danger-soft: #fdeceb;
 
   --chart-strength: #2a55cc;
-  --chart-run: #b57a00;
+  --chart-run: #c0281c;
   --long: #11806f;
   --long-soft: #dcf2ee;
   --success: #1d7a46;
@@ -50,14 +50,15 @@
     --strength: #7d9cff;
     --strength-btn: #3a5fd6;
     --strength-soft: #1c2a4d;
-    --run-fill: #e0a91b;
-    --run-strong: #e8b84a;
-    --run-soft: #362b10;
+    --run-fill: #e5594b;
+    --run-strong: #ff8f82;
+    --run-soft: #3a1c1a;
+    --on-run: #15202b;
     --danger: #ff8a7a;
     --danger-soft: #3a1c1a;
 
     --chart-strength: #5f7fe8;
-    --chart-run: #b8861a;
+    --chart-run: #e5594b;
     --long: #45c2b1;
     --long-soft: #163430;
     --success: #5cc98b;
@@ -1482,7 +1483,7 @@ body:has(.save-bar) .toast-region {
   font-size: 15px;
 }
 
-/* Tons des séances : bleu = endurance, jaune = qualité, vert d’eau = sortie longue */
+/* Tons des séances : bleu = endurance, rouge = qualité, vert d’eau = sortie longue */
 .tone-easy {
   --tone: var(--strength);
   --tone-soft: var(--strength-soft);
