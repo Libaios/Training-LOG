@@ -1,7 +1,7 @@
 // Réponses du coach par l'API Messages : prend en charge les messages en attente, construit le dossier,
 // laisse le modèle répondre et ajuster le plan avec des outils bornés (jamais une sortie, une perf,
 // une séance faite ou verrouillée), puis écrit la réponse dans coach_requests.
-// Budget : Sonnet sans réflexion préalable pour les réponses rapides ; ce qui demande une vraie réflexion part à
+// Budget : tri par Haiku, puis Sonnet sans réflexion préalable pour les réponses rapides ; ce qui demande une vraie réflexion part à
 // la session longue (abonnement Claude, pas les crédits API). Au-delà de 80 % du budget du mois, Haiku prend le relais.
 // Secret Supabase : ANTHROPIC_API_KEY. Facultatif : COACH_MODEL, COACH_EFFORT, COACH_DAILY_LIMIT, COACH_MONTHLY_BUDGET_USD.
 import {
@@ -32,7 +32,7 @@ const PRICES: Record<string, [number, number, number, number]> = {
 }
 export const costOf = (model: string, u: Usage) => {
   const [i, o, w, r] = PRICES[model] ?? PRICES['claude-opus-5-5']
-  return (u.input * i + u.output * o + u.cacheWrite * w + u.cacheRead * r) / 1e6
+  return (u.input * i + u.output * o + u.cacheWrite * w + u.cacheRead * r) / 1e6 + u.extraUsd
 }
 
 /** Dépense du mois en cours (heure de Paris), d'après le journal des appels. */
@@ -45,6 +45,42 @@ export async function monthSpend(db: Db): Promise<number> {
 /** Pas de réflexion préalable (moins de jetons) : ce qui demande de réfléchir part à la session longue. */
 const thinkingFor = (model: string) =>
   model.startsWith('claude-sonnet') ? { thinking: { type: 'between_tools' } } : model.startsWith('claude-haiku') ? { thinking: { type: 'disabled' } } : {}
+
+// Tri préalable par Haiku (presque gratuit, ne lit que le message) : ce qui demande de réfléchir part
+// directement à la session longue, sans payer la lecture du dossier par Sonnet.
+const TRIAGE = `Tu tries les messages qu’un coureur envoie à son coach dans une appli d’entraînement. Réponds par un seul mot.
+RAPIDE si une réponse courte suffit : question sur une séance ou une allure, doute, motivation, ressenti, douleur, petit ajustement d’une ou deux séances.
+CLAUDE s’il faut vraiment réfléchir ou beaucoup modifier : plus de deux séances ou une semaine entière à changer, revoir la progression, l’objectif ou la structure du plan, analyse détaillée, question en plusieurs parties, ou message qui parle, même en partie, de l’appli elle-même (écran, affichage, bouton, bug, nouvelle fonction).
+En cas de doute : RAPIDE.`
+
+async function triage(db: Db, apiKey: string, request: Claimed, deadline: number): Promise<{ toSession: boolean; costUsd: number }> {
+  const { data } = await db
+    .from('coach_requests')
+    .select('message,response')
+    .eq('status', 'traitee')
+    .not('response', 'is', null)
+    .order('handled_at', { ascending: false })
+    .limit(2)
+  const prev = ((data ?? []) as { message: string; response: string }[])
+    .reverse()
+    .map((e) => `Coureur : ${e.message.slice(0, 300)}\nCoach : ${e.response.slice(0, 300)}`)
+    .join('\n')
+  const res = await callApi(
+    apiKey,
+    {
+      model: CHEAP_MODEL,
+      max_tokens: 10,
+      system: TRIAGE,
+      messages: [{ role: 'user', content: `${prev ? `Derniers échanges :\n${prev}\n\n` : ''}Message à trier :\n${request.message}` }],
+      thinking: { type: 'disabled' },
+      output_config: { effort: 'low' },
+    },
+    Math.min(15000, deadline - Date.now()),
+  )
+  const answer = res.content.filter((b) => b.type === 'text').map((b) => b.text ?? '').join('').toUpperCase()
+  const used: Usage = { input: res.usage?.input_tokens ?? 0, output: res.usage?.output_tokens ?? 0, cacheRead: 0, cacheWrite: 0, extraUsd: 0 }
+  return { toSession: answer.includes('CLAUDE'), costUsd: costOf(CHEAP_MODEL, used) }
+}
 
 /** Sonnet tant que le budget du mois le permet, Haiku au-delà de 80 %. */
 export async function pickModel(db: Db): Promise<string> {
@@ -431,7 +467,8 @@ async function runTool(ctx: Ctx, name: string, input: Record<string, unknown>): 
 }
 
 // Appel de l'API ---------------------------------------------------------------------------------
-type Usage = { input: number; output: number; cacheRead: number; cacheWrite: number }
+/** Jetons du modèle principal ; extraUsd : coût du tri préalable (autre modèle). */
+type Usage = { input: number; output: number; cacheRead: number; cacheWrite: number; extraUsd: number }
 type Block = { type: string; id?: string; name?: string; input?: Record<string, unknown>; text?: string }
 
 async function callApi(apiKey: string, body: Record<string, unknown>, timeoutMs: number) {
@@ -450,6 +487,15 @@ type Result = { kind: 'repondu'; reponse: string; titre: string | null; note?: {
 
 /** Traite un message : dossier, échanges avec le modèle et ses outils, jusqu'à repondre ou transmettre. */
 async function handleOne(db: Db, apiKey: string, model: string, request: Claimed, deadline: number, usage: Usage): Promise<Result> {
+  if (model === MODEL) {
+    try {
+      const t = await triage(db, apiKey, request, deadline)
+      usage.extraUsd += t.costUsd
+      if (t.toSession) return { kind: 'transmis', raison: 'Tri : demande qui demande réflexion ou touche l’appli.' }
+    } catch (e) {
+      console.error('tri', e) // tri indisponible : Sonnet décide seul
+    }
+  }
   const dossier = await buildDossier(db, { excludeRequestIds: [request.id] })
   const ctx: Ctx = { db, request, today: dossier.today, raceDate: dossier.raceDate, firstMonday: dossier.firstMonday, changed: false, refused: false }
 
@@ -588,7 +634,7 @@ export async function answerClaimed(db: Db, apiKey: string, first: Claimed[], st
       }
       const t0 = Date.now()
       const model = await pickModel(db)
-      const usage: Usage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }
+      const usage: Usage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, extraUsd: 0 }
       const log = (o: string, error?: string) =>
         db.from('coach_api_log').insert({
           request_id: r.id,

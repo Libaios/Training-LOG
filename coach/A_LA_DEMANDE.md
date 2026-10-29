@@ -31,6 +31,7 @@ Lis `coach/COACH.md` et suis ses sections 2, 4 et 5 (ton : un vrai coach exigean
 - un message avec `session_id` est un commentaire écrit depuis cette séance (« ce sera trop dur ? ») : réponds sur cette séance précisément (étape 5 de la section 4 de `COACH.md`). Si la séance est adaptée, maintiens-la et pousse-le à la faire ; n’allège que sur un vrai signal (douleur, fatigue qui s’accumule). Tu peux modifier cette séance même si elle est `locked` ;
 - adapte les séances à venir non verrouillées si le message le justifie ;
 - si le plan change, écris une seule note `reprogrammation` dans `coach_notes` qui explique les changements ;
+- **écris les changements du plan, la note et la réponse (`response`, `summary`, `status = 'traitee'`, `handled_at`) dans une seule requête `execute_sql`** (instructions séparées par des points-virgules, entre `begin;` et `commit;`) : si la session s’arrête en route, rien ne reste à moitié fait ;
 - tiens compte des sorties enregistrées depuis `runner_profile.last_coach_review_at`, sans mettre à jour `last_coach_review_at` et sans écrire la note du soir (c’est le rôle de la revue du soir) ;
 - ne modifie jamais une séance passée (sauf pour la passer en `sautee` si le message le dit), une séance `locked`, une sortie ou une perf, ni l’objectif de temps sans que le message le demande ;
 - séances à jour libre : `flexible = true`, `scheduled_on` = dimanche de la semaine (voir `COACH.md`) ; n’impose jamais de jour ;
