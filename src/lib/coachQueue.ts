@@ -24,6 +24,18 @@ export function requestState(r: CoachRequest): RequestState {
   return r.claimed_at ? 'en_cours' : 'file'
 }
 
+/** Qui a répondu : l'API (réponse rapide) ou Claude (session longue, revue du soir, réponses d'avant l'API). */
+export function answeredBy(r: CoachRequest): { label: string; className: string } | null {
+  if (r.status !== 'traitee') return null
+  return r.handler === 'api' ? { label: 'API', className: 'tag tag-api' } : { label: 'Claude', className: 'tag tag-claude' }
+}
+
+/** Texte d'attente : un message confié à Claude prend quelques minutes. */
+export function waitingText(r: CoachRequest): string {
+  if (r.handler === 'session') return 'Claude s’en occupe…'
+  return requestState(r) === 'en_cours' ? 'Le coach répond…' : 'En attente du coach…'
+}
+
 /** Le message tel que le coureur l'a écrit (sans le rappel de la séance ajouté à l'envoi). */
 export const stripSessionPrefix = (message: string) => message.replace(/^Sur la séance « .* » : /s, '')
 

@@ -2122,6 +2122,18 @@ body:has(.save-bar) .toast-region {
   border: 1px solid var(--line);
 }
 
+/* Qui a répondu au coureur : l'API (réponse rapide) ou Claude (session longue) */
+.tag-api {
+  background: var(--surface);
+  color: var(--muted);
+  border: 1px solid var(--line);
+}
+
+.tag-claude {
+  background: var(--strength-soft);
+  color: var(--strength);
+}
+
 .chart-placeholder {
   height: 198px;
 }

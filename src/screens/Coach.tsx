@@ -4,7 +4,7 @@ import { Icon } from '../components/Icon'
 import { useStore } from '../lib/store'
 import { errorMessage } from '../lib/supabase'
 import { useToast } from '../lib/ui'
-import { FIRE_TOAST, requestState, stripSessionPrefix } from '../lib/coachQueue'
+import { answeredBy, FIRE_TOAST, requestState, stripSessionPrefix, waitingText } from '../lib/coachQueue'
 import type { CoachNote, CoachRequest } from '../lib/types'
 
 const KIND_LABEL = {
@@ -32,6 +32,7 @@ function RequestRow({ r, open }: { r: CoachRequest; open?: boolean }) {
   const live = coachFires.find((f) => f.status === 'ok' && f.session_url)
   const session = r.session_id ? sessionById.get(r.session_id) : undefined
   const state = requestState(r)
+  const by = answeredBy(r)
   const message = stripSessionPrefix(r.message)
   return (
     <li>
@@ -42,6 +43,7 @@ function RequestRow({ r, open }: { r: CoachRequest; open?: boolean }) {
             <span className="row-sub">
               {when(r.created_at)}
               {session ? `, séance « ${session.title} »` : ''}
+              {by && <span className={by.className}>{by.label}</span>}
             </span>
           </span>
           {state === 'traitee' ? (
@@ -58,7 +60,7 @@ function RequestRow({ r, open }: { r: CoachRequest; open?: boolean }) {
             r.response && <p className="comment-coach">{r.response}</p>
           ) : (
             <p className="muted">
-              {state === 'en_cours' ? 'Le coach répond…' : 'En attente du coach…'}{' '}
+              {waitingText(r)}{' '}
               {live?.session_url && (
                 <a href={live.session_url} target="_blank" rel="noreferrer">
                   Voir sa session

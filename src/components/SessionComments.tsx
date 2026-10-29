@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { useStore } from '../lib/store'
 import { errorMessage } from '../lib/supabase'
 import { useToast } from '../lib/ui'
-import { FIRE_TOAST, requestState, stripSessionPrefix } from '../lib/coachQueue'
+import { answeredBy, FIRE_TOAST, requestState, stripSessionPrefix, waitingText } from '../lib/coachQueue'
 import type { PlanSession } from '../lib/types'
 import { Icon } from './Icon'
 
@@ -34,19 +34,27 @@ export function SessionComments({ session, limit = 3 }: { session: PlanSession; 
 
   return (
     <div className="session-comments">
-      {thread.map((r) => (
-        <div key={r.id} className="comment">
-          <p className="comment-me">{stripSessionPrefix(r.message)}</p>
-          {requestState(r) === 'traitee' ? (
-            r.response && <p className="comment-coach">{r.response}</p>
-          ) : (
-            <p className="working">
-              <span className="spinner" aria-hidden />
-              {requestState(r) === 'en_cours' ? 'Le coach répond…' : 'En attente du coach…'}
-            </p>
-          )}
-        </div>
-      ))}
+      {thread.map((r) => {
+        const by = answeredBy(r)
+        return (
+          <div key={r.id} className="comment">
+            <p className="comment-me">{stripSessionPrefix(r.message)}</p>
+            {requestState(r) === 'traitee' ? (
+              r.response && (
+                <p className="comment-coach">
+                  {r.response}
+                  {by && <span className={by.className}>{by.label}</span>}
+                </p>
+              )
+            ) : (
+              <p className="working">
+                <span className="spinner" aria-hidden />
+                {waitingText(r)}
+              </p>
+            )}
+          </div>
+        )
+      })}
       {open ? (
         <form className="comment-form" onSubmit={send}>
           <label className="field">

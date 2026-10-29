@@ -232,6 +232,8 @@ export type CoachRequest = {
   claimed_at: string | null
   /** Titre court écrit par le coach pour le récap. */
   summary: string | null
+  /** api : répondu par l'API ; session : confié à Claude (session longue) ; vide : pas encore vu, ou avant l'API. */
+  handler: 'api' | 'session' | null
 }
 
 export type CoachFire = {
