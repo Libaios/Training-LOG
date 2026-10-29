@@ -5,7 +5,14 @@ Ce lancement vient de l’onglet Coach de l’appli « Carnet d’entraînement 
 ## 0. Avant tout
 
 - Données : Supabase, projet `zmiazoekdvdwoqqdysse`, via le connecteur Supabase (`execute_sql`, `apply_migration`). S’il n’est pas disponible, arrête-toi et dis-le en une ligne.
-- Lis les demandes `en_attente` de `coach_requests` (la plus ancienne d’abord), **et les 10 derniers échanges déjà traités** (`message`, `response`) : un message est souvent la suite d’un échange précédent (« oui vas-y », « plus foncé », « comme je t’ai dit »). Lis aussi les 3 dernières `coach_notes`.
+- **Prends en charge** les messages en attente avec cette requête exacte, et ne traite que les lignes qu’elle renvoie (une autre session s’occupe peut-être des autres) :
+  ```sql
+  update coach_requests set claimed_at = now()
+  where status = 'en_attente' and (claimed_at is null or claimed_at < now() - interval '15 minutes')
+  returning id, created_at, message, session_id;
+  ```
+- Lis aussi **les 10 derniers échanges déjà traités** (`message`, `response`) : un message est souvent la suite d’un échange précédent (« oui vas-y », « plus foncé », « comme je t’ai dit »). Et les 3 dernières `coach_notes`.
+- Un message qui commence par « Sur la séance « … » : » a été écrit depuis cette séance (`session_id`).
 - La colonne `kind` ne compte plus : un message peut parler d’entraînement, de l’appli, ou des deux. Décide d’après le contenu et traite toutes les parties.
 
 ## 1. Règle d’or : faire, pas renvoyer
@@ -39,7 +46,7 @@ Vite, React 19, TypeScript ; appli installable publiée sur GitHub Pages (`/Trai
 | Plan | `src/screens/Plan.tsx` | semaines jusqu’à la course, km prévus et faits |
 | Séance | `src/screens/SessionDetail.tsx` | déroulé, valider, déplacer, modifier, sauter |
 | Courses | `src/screens/RunList.tsx`, `RunEditor.tsx`, `src/components/RunsChart.tsx` | historique, graphique, saisie d’une sortie |
-| Coach | `src/screens/Coach.tsx` | messages au coach, notes du coach |
+| Coach | `src/screens/Coach.tsx`, `src/components/SessionComments.tsx`, relance auto `src/lib/coachQueue.ts` | fil des échanges et des notes du coach, commentaires de séance |
 | Profil | `src/screens/Profile.tsx` | niveau, allures par zone, perfs, objectif, disponibilités |
 | Masqués | `WorkoutList`, `WorkoutEditor`, `TemplateEditor`, `Progress`, `Settings` | muscu et réglages, hors navigation |
 
@@ -57,8 +64,13 @@ Vite, React 19, TypeScript ; appli installable publiée sur GitHub Pages (`/Trai
 
 ## 4. Pour finir
 
-- Chaque message se termine par `response`, `status = 'traitee'`, `handled_at = now()`.
-- Avant de finir, regarde s’il est arrivé de nouveaux messages pendant ton travail et traite-les de la même façon.
+- Chaque message pris en charge se termine par `response`, `status = 'traitee'`, `handled_at = now()`, dès qu’il est traité (n’attends pas la fin des autres).
+- Refais la prise en charge (section 0) et traite ce qu’elle renvoie, jusqu’à ce qu’elle ne renvoie plus rien.
+- **Signale ta fin, puis vérifie une dernière fois**, dans cet ordre (sinon un message envoyé à ce moment-là serait oublié) :
+  ```sql
+  update coach_fire_log set finished_at = now() where status = 'ok' and finished_at is null;
+  ```
+  puis refais la prise en charge. Si elle renvoie des lignes : `update coach_fire_log set finished_at = null where id = (select id from coach_fire_log where status = 'ok' order by fired_at desc limit 1);`, traite-les, et recommence cette étape.
 - Termine par une seule ligne qui résume ce que tu as fait.
 
 ## 5. Les seules limites (sécurité et données)
