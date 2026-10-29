@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { PageHeader } from '../components/Layout'
 import { useStore } from '../lib/store'
 import { errorMessage } from '../lib/supabase'
-import { useToast } from '../lib/ui'
+import { readLocal, useToast, writeLocal } from '../lib/ui'
 import type { FireStatus } from '../lib/types'
 import { Icon } from '../components/Icon'
 import config from '../../app.config.json'
@@ -29,15 +29,32 @@ const FIRE_TOAST: Record<FireStatus, string> = {
   already_running: 'Le coach est déjà au travail, il traite aussi ce message',
   not_configured: 'Message envoyé, le coach le traitera ce soir',
   nothing_pending: 'Message envoyé',
+  bad_code: 'Code incorrect',
+  no_app_code: 'Les demandes de modification ne sont pas encore activées',
   error: 'Message envoyé, le coach le traitera ce soir',
 }
+
+const APP_TOAST: Partial<Record<FireStatus, string>> = {
+  fired: 'Demande envoyée : l’appli sera mise à jour dans quelques minutes',
+  already_running: 'Demande envoyée : elle sera traitée dans la foulée',
+  error: 'La demande n’a pas pu être envoyée, réessaie',
+  not_configured: 'Le lancement immédiat n’est pas configuré',
+}
+
+const APP_SUGGESTIONS = ['Mets la partie course en rouge au lieu du jaune', 'Agrandis le compte à rebours sur l’accueil']
+
+const CODE_KEY = 'training-log.app-code'
+
+type Mode = 'coach' | 'appli'
 
 const LIVE_WINDOW_MS = 20 * 60 * 1000
 
 export function Coach() {
-  const { coachNotes, coachRequests, coachFires, sendCoachRequest, markNotesRead, reload } = useStore()
+  const { coachNotes, coachRequests, coachFires, sendCoachRequest, sendAppRequest, markNotesRead, reload } = useStore()
   const toast = useToast()
+  const [mode, setMode] = useState<Mode>('coach')
   const [message, setMessage] = useState('')
+  const [code, setCode] = useState(() => readLocal<string>(CODE_KEY) ?? '')
   const [busy, setBusy] = useState(false)
   const marked = useRef(false)
 
@@ -52,11 +69,30 @@ export function Coach() {
   async function send(e: FormEvent) {
     e.preventDefault()
     if (!message.trim()) return
+    if (mode === 'appli' && !code.trim()) {
+      toast('Entre ton code pour modifier l’appli', 'error')
+      return
+    }
     setBusy(true)
     try {
-      const status = await sendCoachRequest(message)
-      setMessage('')
-      toast(FIRE_TOAST[status])
+      if (mode === 'coach') {
+        const status = await sendCoachRequest(message)
+        setMessage('')
+        toast(FIRE_TOAST[status])
+      } else {
+        const status = await sendAppRequest(message, code.trim())
+        if (status === 'bad_code') {
+          writeLocal(CODE_KEY, null)
+          setCode('')
+          toast('Code incorrect', 'error')
+        } else if (status === 'fired' || status === 'already_running') {
+          writeLocal(CODE_KEY, code.trim())
+          setMessage('')
+          toast(APP_TOAST[status] ?? FIRE_TOAST[status])
+        } else {
+          toast(APP_TOAST[status] ?? FIRE_TOAST[status], 'error')
+        }
+      }
     } catch (err) {
       toast(errorMessage(err), 'error')
     } finally {
@@ -86,29 +122,59 @@ export function Coach() {
     <main className="screen">
       <PageHeader title="Coach" />
       <p className="muted">
-        Écris ta demande ici : le coach la traite en quelques minutes et réajuste ton plan. Chaque soir, il relit aussi
-        tes sorties de la journée.
+        Écris ta demande ici : le coach la traite en quelques minutes. Il réajuste ton plan, et peut aussi modifier
+        l’appli elle-même. Chaque soir, il relit tes sorties de la journée.
       </p>
 
       <form className="coach-form" onSubmit={send}>
+        <div className="segmented" role="tablist" aria-label="Type de demande">
+          <button type="button" role="tab" aria-selected={mode === 'coach'} onClick={() => setMode('coach')}>
+            Entraînement
+          </button>
+          <button type="button" role="tab" aria-selected={mode === 'appli'} onClick={() => setMode('appli')}>
+            Modifier l’appli
+          </button>
+        </div>
         <label className="field">
-          <span>Écrire au coach</span>
+          <span>{mode === 'coach' ? 'Écrire au coach' : 'Ce que tu veux changer dans l’appli'}</span>
           <textarea
             rows={3}
             maxLength={2000}
-            placeholder="Contraintes, sensations, imprévus, envie de changer quelque chose…"
+            placeholder={
+              mode === 'coach'
+                ? 'Contraintes, sensations, imprévus, envie de changer quelque chose…'
+                : 'Couleurs, textes, disposition d’un écran…'
+            }
             value={message}
             onChange={(e) => setMessage(e.target.value)}
           />
         </label>
         {!message && (
           <div className="chips">
-            {SUGGESTIONS.map((s) => (
+            {(mode === 'coach' ? SUGGESTIONS : APP_SUGGESTIONS).map((s) => (
               <button key={s} type="button" className="chip chip-small" onClick={() => setMessage(s)}>
                 {s}
               </button>
             ))}
           </div>
+        )}
+        {mode === 'appli' && (
+          <>
+            <label className="field">
+              <span>Code de modification</span>
+              <input
+                type="password"
+                autoComplete="off"
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                placeholder="Gardé sur ce téléphone après le premier envoi"
+              />
+            </label>
+            <p className="muted chart-note">
+              Les changements d’apparence et de textes sont faits et publiés automatiquement. Les données, la sécurité et
+              les gros changements restent à voir avec Claude.
+            </p>
+          </>
         )}
         <button type="submit" className="btn btn-primary" disabled={busy || !message.trim()}>
           Envoyer
@@ -121,6 +187,7 @@ export function Coach() {
           <ul className="list compact">
             {pending.map((r) => (
               <li key={r.id} className="request">
+                {r.kind === 'appli' && <span className="stag stag-neutral request-kind">Modification de l’appli</span>}
                 <p>{r.message}</p>
                 {isCovered(r.created_at) ? (
                   <span className="working">
@@ -133,7 +200,9 @@ export function Coach() {
                     )}
                   </span>
                 ) : (
-                  <span className="muted">Envoyé {when(r.created_at)}, traité ce soir</span>
+                  <span className="muted">
+                    Envoyé {when(r.created_at)}, {r.kind === 'appli' ? 'en attente du prochain lancement' : 'traité ce soir'}
+                  </span>
                 )}
               </li>
             ))}
@@ -174,6 +243,7 @@ export function Coach() {
           <ul className="list compact">
             {answered.map((r) => (
               <li key={r.id} className="request">
+                {r.kind === 'appli' && <span className="stag stag-neutral request-kind">Modification de l’appli</span>}
                 <p>{r.message}</p>
                 {r.response && <p className="request-response">{r.response}</p>}
                 <span className="muted">{when(r.created_at)}</span>

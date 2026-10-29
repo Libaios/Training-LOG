@@ -86,6 +86,7 @@ type Store = Data & {
   setSessionStatus: (id: string, status: SessionStatus) => Promise<void>
   deleteSession: (id: string) => Promise<void>
   sendCoachRequest: (message: string) => Promise<FireStatus>
+  sendAppRequest: (message: string, code: string) => Promise<FireStatus>
   markNotesRead: (ids: string[]) => Promise<void>
 }
 
@@ -153,7 +154,7 @@ async function loadAll(): Promise<Data> {
       ],
     ),
     fetchAll<CoachNote>('coach_notes', 'id,created_at,kind,title,body,read', [['created_at', false]]),
-    fetchAll<CoachRequest>('coach_requests', 'id,created_at,message,status,response,handled_at', [['created_at', false]]),
+    fetchAll<CoachRequest>('coach_requests', 'id,created_at,kind,message,status,response,handled_at', [['created_at', false]]),
     supabase.from('coach_fire_log').select('fired_at,status,session_url').order('fired_at', { ascending: false }).limit(5),
   ])
   if (profileRes.error) throw profileRes.error
@@ -196,6 +197,22 @@ async function loadAll(): Promise<Data> {
     // Le journal est facultatif : s'il est illisible, l'appli fonctionne sans le suivi en direct.
     coachFires: firesRes.error ? [] : ((firesRes.data ?? []) as CoachFire[]),
   }
+}
+
+/** Appelle la fonction serveur qui lance le coach ; renvoie son statut, y compris en cas de refus (403). */
+async function fireCoach(body: Record<string, unknown>): Promise<FireStatus> {
+  try {
+    const { data, error } = await supabase.functions.invoke('coach-fire', { body })
+    if (!error && data && typeof data === 'object' && 'status' in data) return (data as { status: FireStatus }).status
+    const ctx = (error as { context?: unknown } | null)?.context
+    if (ctx instanceof Response) {
+      const parsed = await ctx.json().catch(() => null)
+      if (parsed && typeof parsed === 'object' && 'status' in parsed) return (parsed as { status: FireStatus }).status
+    }
+  } catch {
+    /* réseau indisponible : la demande d'entraînement reste en attente pour la revue du soir */
+  }
+  return 'error'
 }
 
 /** Transforme la saisie en lignes de séries valides (les lignes sans reps sont ignorées). */
@@ -481,18 +498,22 @@ export function DataProvider({ children }: { children: ReactNode }) {
     [reload],
   )
 
-  /** Enregistre la demande puis lance le coach tout de suite (s'il est configuré). */
+  /** Enregistre la demande d'entraînement puis lance le coach tout de suite (s'il est configuré). */
   const sendCoachRequest = useCallback(
     async (message: string): Promise<FireStatus> => {
       const { error: e } = await supabase.from('coach_requests').insert({ message: message.trim() })
       if (e) throw e
-      let status: FireStatus = 'error'
-      try {
-        const { data: res, error: fe } = await supabase.functions.invoke('coach-fire', { body: {} })
-        if (!fe && res && typeof res === 'object' && 'status' in res) status = (res as { status: FireStatus }).status
-      } catch {
-        status = 'error'
-      }
+      const status = await fireCoach({})
+      await reload()
+      return status
+    },
+    [reload],
+  )
+
+  /** Demande de modification de l'appli : créée côté serveur, seulement avec le bon code. */
+  const sendAppRequest = useCallback(
+    async (message: string, code: string): Promise<FireStatus> => {
+      const status = await fireCoach({ kind: 'appli', message: message.trim(), code })
       await reload()
       return status
     },
@@ -534,6 +555,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setSessionStatus,
     deleteSession,
     sendCoachRequest,
+    sendAppRequest,
     markNotesRead,
   }
 

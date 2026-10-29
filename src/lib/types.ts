@@ -211,6 +211,7 @@ export type CoachNote = {
 export type CoachRequest = {
   id: string
   created_at: string
+  kind: 'coach' | 'appli'
   message: string
   status: 'en_attente' | 'traitee'
   response: string | null
@@ -224,4 +225,11 @@ export type CoachFire = {
 }
 
 /** Résultat du lancement du coach à la demande. */
-export type FireStatus = 'fired' | 'already_running' | 'not_configured' | 'nothing_pending' | 'error'
+export type FireStatus =
+  | 'fired'
+  | 'already_running'
+  | 'not_configured'
+  | 'nothing_pending'
+  | 'bad_code'
+  | 'no_app_code'
+  | 'error'

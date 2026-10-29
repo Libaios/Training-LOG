@@ -2170,3 +2170,7 @@ body:has(.save-bar) .toast-region {
   font-weight: 500;
   text-decoration: underline;
 }
+
+.request-kind {
+  align-self: flex-start;
+}
