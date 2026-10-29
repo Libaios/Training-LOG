@@ -1,9 +1,9 @@
 // Lance le coach IA « à la demande » quand une demande est envoyée depuis l'onglet Coach.
-// Le jeton de la tâche Claude est dans le secret CLAUDE_COACH_TOKEN, jamais dans l'appli.
+// Secrets Supabase : CLAUDE_COACH_FIRE_URL (adresse « Fire URL » de la tâche) et CLAUDE_COACH_TOKEN (son jeton).
+// Le jeton n'est jamais dans l'appli.
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
-const ROUTINE_ID = 'trig_01M1N9SHqi212W6zxPEJPpzk'
 const MIN_INTERVAL_MS = 2 * 60 * 1000
 
 const cors = {
@@ -20,7 +20,8 @@ Deno.serve(async (req) => {
   if (req.method !== 'POST') return json({ status: 'method_not_allowed' }, 405)
 
   const token = Deno.env.get('CLAUDE_COACH_TOKEN')
-  if (!token) return json({ status: 'not_configured' })
+  const fireUrl = Deno.env.get('CLAUDE_COACH_FIRE_URL')
+  if (!token || !fireUrl?.startsWith('https://api.anthropic.com/')) return json({ status: 'not_configured' })
 
   const db = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
 
@@ -44,7 +45,7 @@ Deno.serve(async (req) => {
     return json({ status: 'already_running', session_url: last.session_url })
   }
 
-  const res = await fetch(`https://api.anthropic.com/v1/claude_code/routines/${ROUTINE_ID}/fire`, {
+  const res = await fetch(fireUrl, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,
