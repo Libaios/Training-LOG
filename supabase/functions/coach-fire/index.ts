@@ -31,11 +31,14 @@ Deno.serve(async (req) => {
   const db = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
 
   // Rien à lancer sans demande en attente.
-  const { count, error: countError } = await db
+  const { data: pending, error: pendingError } = await db
     .from('coach_requests')
-    .select('id', { count: 'exact', head: true })
+    .select('message')
     .eq('status', 'en_attente')
-  if (countError) return json({ status: 'error', message: countError.message }, 500)
+    .order('created_at', { ascending: true })
+    .limit(20)
+  if (pendingError) return json({ status: 'error', message: pendingError.message }, 500)
+  const count = pending?.length ?? 0
   if (!count) return json({ status: 'nothing_pending' })
 
   // Un lancement par minute au plus : le coach en cours traite aussi les demandes arrivées entre-temps.
@@ -57,7 +60,12 @@ Deno.serve(async (req) => {
       'anthropic-version': '2023-06-01',
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ text: `${count} demande(s) en attente dans l'appli.` }),
+    // Le texte des messages sert de titre et de contexte à la session ; la base reste la référence.
+    body: JSON.stringify({
+      text: [`${count} message(s) en attente dans l'appli :`, ...pending!.map((r) => `- ${r.message}`)]
+        .join('\n')
+        .slice(0, 6000),
+    }),
   })
   const body = await res.json().catch(() => ({}))
 

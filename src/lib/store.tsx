@@ -86,7 +86,7 @@ type Store = Data & {
   setSessionStatus: (id: string, status: SessionStatus) => Promise<void>
   deleteSession: (id: string) => Promise<void>
   sendCoachRequest: (message: string) => Promise<FireStatus>
-  sendAppRequest: (message: string) => Promise<FireStatus>
+  relaunchCoach: () => Promise<FireStatus>
   markNotesRead: (ids: string[]) => Promise<void>
 }
 
@@ -498,7 +498,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     [reload],
   )
 
-  /** Enregistre la demande d'entraînement puis lance le coach tout de suite (s'il est configuré). */
+  /** Enregistre la demande (entraînement ou appli, le coach décide) puis lance le coach tout de suite. */
   const sendCoachRequest = useCallback(
     async (message: string): Promise<FireStatus> => {
       const { error: e } = await supabase.from('coach_requests').insert({ message: message.trim() })
@@ -510,17 +510,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
     [reload],
   )
 
-  /** Demande de modification de l'appli (réservée aux comptes connectés), puis lancement du coach. */
-  const sendAppRequest = useCallback(
-    async (message: string): Promise<FireStatus> => {
-      const { error: e } = await supabase.from('coach_requests').insert({ message: message.trim(), kind: 'appli' })
-      if (e) throw e
-      const status = await fireCoach({})
-      await reload()
-      return status
-    },
-    [reload],
-  )
+  /** Relance le coach pour les demandes restées en attente (sans rien renvoyer). */
+  const relaunchCoach = useCallback(async (): Promise<FireStatus> => {
+    const status = await fireCoach({})
+    await reload()
+    return status
+  }, [reload])
 
   const markNotesRead = useCallback(
     async (ids: string[]) => {
@@ -557,7 +552,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setSessionStatus,
     deleteSession,
     sendCoachRequest,
-    sendAppRequest,
+    relaunchCoach,
     markNotesRead,
   }
 
