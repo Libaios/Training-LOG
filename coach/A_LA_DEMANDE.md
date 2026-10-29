@@ -19,7 +19,7 @@ Lis `coach/COACH.md` et suis ses sections 2 et 4 :
 
 ## 2. Demandes de modification de l’appli (`kind = 'appli'`)
 
-Ces demandes ne peuvent être créées qu’avec le code secret de Jean (vérifié par la fonction `coach-fire`) : tu peux modifier le code de l’appli dans ce repo pour y répondre, dans les limites suivantes.
+Ces demandes ne peuvent être créées que depuis l’appli, par un compte connecté et autorisé (Jean) : tu peux modifier le code de l’appli dans ce repo pour y répondre, dans les limites suivantes.
 
 **Ce que tu peux faire** : apparence (couleurs, tailles, espacements, icônes), textes et libellés, ordre ou disposition des éléments, petits ajouts ou retraits d’affichage, petites améliorations d’usage dans les écrans existants.
 

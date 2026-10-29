@@ -20,15 +20,19 @@ Appli web installable sur téléphone pour préparer un semi-marathon avec un co
 
 ## Accès
 
-Pour l’instant l’appli s’ouvre **sans connexion** (`"requireAuth": false` dans `app.config.json`, migration `0003_open_access.sql`). Pour réactiver les comptes : exécuter le bloc « Retour aux comptes » de cette migration, créer les comptes (étapes 2 et 3 ci-dessous), passer `requireAuth` à `true` et republier.
+Connexion obligatoire par email et mot de passe ; la session reste ouverte sur l’appareil tant qu’on ne se déconnecte pas. Un compte créé avec un email listé dans `private.allowed_emails` devient membre automatiquement (migration `0008_login.sql`). Les visiteurs non connectés n’ont plus accès à aucune donnée.
+
+## Coach IA
+
+- **Revue du soir** : tâche programmée tous les jours à 21h43, règles dans `coach/COACH.md`.
+- **À la demande** : l’onglet Coach enregistre la demande puis appelle la fonction Supabase `coach-fire`, qui lance la tâche Claude « Coach semi Madrid : à la demande (API) » (secret `CLAUDE_COACH_TOKEN`). Consignes dans `coach/A_LA_DEMANDE.md` : demandes d’entraînement, et demandes de modification de l’appli (code modifié, vérifié et publié automatiquement).
 
 ## Mise en place
 
-1. Exécuter `supabase/migrations/0001_schema.sql` sur le projet Supabase
-2. Créer les comptes dans Supabase (Authentication, Users, email + mot de passe), puis désactiver les nouvelles inscriptions
-3. Autoriser les comptes : `insert into public.members (user_id) select id from auth.users on conflict do nothing;`
-4. Renseigner `supabaseUrl` et `supabasePublishableKey` dans `app.config.json`
-5. Dans le repo GitHub : Settings, Pages, Source = Deploy from a branch, branche `gh-pages`, dossier `/ (root)`
+1. Exécuter les migrations de `supabase/migrations/` dans l’ordre
+2. Ajouter les emails autorisés dans `private.allowed_emails`, puis créer les comptes dans Supabase (Authentication, Users, email + mot de passe, Auto Confirm) et désactiver les nouvelles inscriptions
+3. Renseigner `supabaseUrl` et `supabasePublishableKey` dans `app.config.json`
+4. Dans le repo GitHub : Settings, Pages, Source = Deploy from a branch, branche `gh-pages`, dossier `/ (root)`
 
 ## Publier une nouvelle version
 

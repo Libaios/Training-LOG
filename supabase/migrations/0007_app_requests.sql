@@ -1,6 +1,6 @@
--- Demandes de modification de l'appli : type « appli », créées seulement par la fonction coach-fire
--- après vérification du code secret (APP_CHANGE_CODE). Les visiteurs anonymes ne peuvent créer
--- que des demandes d'entraînement, et ne peuvent ni modifier ni supprimer les demandes.
+-- Demandes de modification de l'appli : type « appli », réservées aux comptes connectés autorisés.
+-- Les visiteurs anonymes ne peuvent créer que des demandes d'entraînement, et ne peuvent ni modifier
+-- ni supprimer les demandes (depuis 0008, ils n'ont plus accès à rien).
 alter table public.coach_requests add column kind text not null default 'coach' check (kind in ('coach', 'appli'));
 
 create policy "Accès ouvert : seulement des demandes d'entraînement" on public.coach_requests

@@ -86,7 +86,7 @@ type Store = Data & {
   setSessionStatus: (id: string, status: SessionStatus) => Promise<void>
   deleteSession: (id: string) => Promise<void>
   sendCoachRequest: (message: string) => Promise<FireStatus>
-  sendAppRequest: (message: string, code: string) => Promise<FireStatus>
+  sendAppRequest: (message: string) => Promise<FireStatus>
   markNotesRead: (ids: string[]) => Promise<void>
 }
 
@@ -510,10 +510,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
     [reload],
   )
 
-  /** Demande de modification de l'appli : créée côté serveur, seulement avec le bon code. */
+  /** Demande de modification de l'appli (réservée aux comptes connectés), puis lancement du coach. */
   const sendAppRequest = useCallback(
-    async (message: string, code: string): Promise<FireStatus> => {
-      const status = await fireCoach({ kind: 'appli', message: message.trim(), code })
+    async (message: string): Promise<FireStatus> => {
+      const { error: e } = await supabase.from('coach_requests').insert({ message: message.trim(), kind: 'appli' })
+      if (e) throw e
+      const status = await fireCoach({})
       await reload()
       return status
     },

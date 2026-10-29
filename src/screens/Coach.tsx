@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { PageHeader } from '../components/Layout'
 import { useStore } from '../lib/store'
 import { errorMessage } from '../lib/supabase'
-import { readLocal, useToast, writeLocal } from '../lib/ui'
+import { useToast } from '../lib/ui'
 import type { FireStatus } from '../lib/types'
 import { Icon } from '../components/Icon'
 import config from '../../app.config.json'
@@ -29,21 +29,19 @@ const FIRE_TOAST: Record<FireStatus, string> = {
   already_running: 'Le coach est déjà au travail, il traite aussi ce message',
   not_configured: 'Message envoyé, le coach le traitera ce soir',
   nothing_pending: 'Message envoyé',
-  bad_code: 'Code incorrect',
-  no_app_code: 'Les demandes de modification ne sont pas encore activées',
+  bad_code: 'Demande refusée',
+  no_app_code: 'Demande refusée',
   error: 'Message envoyé, le coach le traitera ce soir',
 }
 
 const APP_TOAST: Partial<Record<FireStatus, string>> = {
   fired: 'Demande envoyée : l’appli sera mise à jour dans quelques minutes',
   already_running: 'Demande envoyée : elle sera traitée dans la foulée',
-  error: 'La demande n’a pas pu être envoyée, réessaie',
-  not_configured: 'Le lancement immédiat n’est pas configuré',
+  error: 'Demande enregistrée, elle sera traitée au prochain lancement',
+  not_configured: 'Demande enregistrée, le lancement immédiat n’est pas configuré',
 }
 
 const APP_SUGGESTIONS = ['Mets la partie course en rouge au lieu du jaune', 'Agrandis le compte à rebours sur l’accueil']
-
-const CODE_KEY = 'training-log.app-code'
 
 type Mode = 'coach' | 'appli'
 
@@ -54,7 +52,6 @@ export function Coach() {
   const toast = useToast()
   const [mode, setMode] = useState<Mode>('coach')
   const [message, setMessage] = useState('')
-  const [code, setCode] = useState(() => readLocal<string>(CODE_KEY) ?? '')
   const [busy, setBusy] = useState(false)
   const marked = useRef(false)
 
@@ -69,30 +66,11 @@ export function Coach() {
   async function send(e: FormEvent) {
     e.preventDefault()
     if (!message.trim()) return
-    if (mode === 'appli' && !code.trim()) {
-      toast('Entre ton code pour modifier l’appli', 'error')
-      return
-    }
     setBusy(true)
     try {
-      if (mode === 'coach') {
-        const status = await sendCoachRequest(message)
-        setMessage('')
-        toast(FIRE_TOAST[status])
-      } else {
-        const status = await sendAppRequest(message, code.trim())
-        if (status === 'bad_code') {
-          writeLocal(CODE_KEY, null)
-          setCode('')
-          toast('Code incorrect', 'error')
-        } else if (status === 'fired' || status === 'already_running') {
-          writeLocal(CODE_KEY, code.trim())
-          setMessage('')
-          toast(APP_TOAST[status] ?? FIRE_TOAST[status])
-        } else {
-          toast(APP_TOAST[status] ?? FIRE_TOAST[status], 'error')
-        }
-      }
+      const status = mode === 'coach' ? await sendCoachRequest(message) : await sendAppRequest(message)
+      setMessage('')
+      toast(mode === 'appli' ? (APP_TOAST[status] ?? FIRE_TOAST[status]) : FIRE_TOAST[status])
     } catch (err) {
       toast(errorMessage(err), 'error')
     } finally {
@@ -159,22 +137,10 @@ export function Coach() {
           </div>
         )}
         {mode === 'appli' && (
-          <>
-            <label className="field">
-              <span>Code de modification</span>
-              <input
-                type="password"
-                autoComplete="off"
-                value={code}
-                onChange={(e) => setCode(e.target.value)}
-                placeholder="Gardé sur ce téléphone après le premier envoi"
-              />
-            </label>
-            <p className="muted chart-note">
-              Les changements d’apparence et de textes sont faits et publiés automatiquement. Les données, la sécurité et
-              les gros changements restent à voir avec Claude.
-            </p>
-          </>
+          <p className="muted chart-note">
+            Les changements d’apparence et de textes sont faits et publiés automatiquement. Les données, la sécurité et
+            les gros changements restent à voir avec Claude.
+          </p>
         )}
         <button type="submit" className="btn btn-primary" disabled={busy || !message.trim()}>
           Envoyer
