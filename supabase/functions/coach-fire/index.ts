@@ -1,9 +1,10 @@
 // Lance le coach IA « à la demande » quand une demande est envoyée depuis l'onglet Coach.
-// Secrets Supabase : CLAUDE_COACH_FIRE_URL (adresse « Fire URL » de la tâche) et CLAUDE_COACH_TOKEN (son jeton).
-// Le jeton n'est jamais dans l'appli.
+// Secret Supabase : CLAUDE_COACH_TOKEN (jeton de la tâche « Coach semi Madrid : à la demande (API) »).
+// CLAUDE_COACH_FIRE_URL est facultatif (sinon, l'adresse de cette tâche). Le jeton n'est jamais dans l'appli.
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
+const DEFAULT_FIRE_URL = 'https://api.anthropic.com/v1/claude_code/routines/trig_01QK1a2dXLj2toqoPBoTetvJ/fire'
 const MIN_INTERVAL_MS = 2 * 60 * 1000
 
 const cors = {
@@ -20,8 +21,8 @@ Deno.serve(async (req) => {
   if (req.method !== 'POST') return json({ status: 'method_not_allowed' }, 405)
 
   const token = Deno.env.get('CLAUDE_COACH_TOKEN')
-  const fireUrl = Deno.env.get('CLAUDE_COACH_FIRE_URL')
-  if (!token || !fireUrl?.startsWith('https://api.anthropic.com/')) return json({ status: 'not_configured' })
+  const fireUrl = (Deno.env.get('CLAUDE_COACH_FIRE_URL') || DEFAULT_FIRE_URL).trim()
+  if (!token || !fireUrl.startsWith('https://api.anthropic.com/')) return json({ status: 'not_configured' })
 
   const db = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
 
