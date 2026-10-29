@@ -26,7 +26,8 @@ const shorten = (text: string, max = 60) => {
 
 /** Une demande : son titre en une ligne, le détail (ton message et la réponse) en l'ouvrant. */
 function RequestRow({ r }: { r: CoachRequest }) {
-  const { sessionById } = useStore()
+  const { sessionById, coachFires } = useStore()
+  const live = coachFires.find((f) => f.status === 'ok' && f.session_url)
   const session = r.session_id ? sessionById.get(r.session_id) : undefined
   const state = requestState(r)
   const message = stripSessionPrefix(r.message)
@@ -54,7 +55,14 @@ function RequestRow({ r }: { r: CoachRequest }) {
           {state === 'traitee' ? (
             r.response && <p className="comment-coach">{r.response}</p>
           ) : (
-            <p className="muted">{state === 'en_cours' ? 'Le coach répond…' : 'En attente du coach…'}</p>
+            <p className="muted">
+              {state === 'en_cours' ? 'Le coach répond…' : 'En attente du coach…'}{' '}
+              {live?.session_url && (
+                <a href={live.session_url} target="_blank" rel="noreferrer">
+                  Voir sa session
+                </a>
+              )}
+            </p>
           )}
           {session && (
             <a className="btn btn-text btn-small" href={`#/seance/${session.id}`}>
