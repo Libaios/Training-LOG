@@ -6,14 +6,15 @@
 // File d'attente : un message « en_attente » non pris en charge (claimed_at vide, ou vieux de plus
 // de 10 min) attend une session. Si une session tourne encore (finished_at vide, et elle a pris un
 // message dans les 3 min après son lancement), elle le prendra avant de finir : on ne relance pas.
-// Une session qui n'a rien pris en 3 min est considérée comme bloquée : on en lance une autre.
+// Une session qui n'a rien pris en 3 min, ou qui tourne depuis plus de 6 min, ne bloque plus : on en lance une autre
+// (les messages déjà pris restent à elle pendant 10 min, les nouveaux vont à la nouvelle session).
 // Seuls les comptes connectés autorisés peuvent créer des messages ; sans message en attente, rien ne part.
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
 const DEFAULT_FIRE_URL = 'https://api.anthropic.com/v1/claude_code/routines/trig_01QK1a2dXLj2toqoPBoTetvJ/fire'
 const STALE_MS = 10 * 60 * 1000
-const ALIVE_MS = 15 * 60 * 1000
+const ALIVE_MS = 6 * 60 * 1000
 const STARTUP_MS = 3 * 60 * 1000
 const MIN_GAP_MS = 20 * 1000
 const MAX_PER_HOUR = 20
