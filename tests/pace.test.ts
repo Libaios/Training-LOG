@@ -15,6 +15,10 @@ near(p40.T.fast, 5 * 60 + 2, 6, 'seuil VDOT 40 rapide')
 near(p40.T.slow, 5 * 60 + 10, 6, 'seuil VDOT 40 lent')
 near((p40.I.fast + p40.I.slow) / 2, 4 * 60 + 42, 4, 'intervalles VDOT 40')
 assert.ok(p40.E.fast > p40.S.fast && p40.S.fast > p40.T.fast && p40.T.fast > p40.I.fast && p40.I.fast > p40.R.fast, 'zones ordonnées')
+for (const z of ['X', 'E', 'T', 'I', 'R'] as const) {
+  const r = p40[z]
+  assert.ok(r.target % 5 === 0 && r.target >= r.fast - 3 && r.target <= r.slow + 3, `allure cible fixe ${z} dans la zone`)
+}
 near(p40.S.fast + 3, (3600 + 50 * 60 + 59) / 21.0975, 3, 'allure semi = prédiction sans objectif')
 
 const profile = { goal_time_sec: 2 * 3600 - 60, race_distance_km: 21.0975 } as RunnerProfile

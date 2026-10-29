@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { PageHeader } from '../components/Layout'
 import { Icon } from '../components/Icon'
 import { recapOf } from '../lib/recap'
-import { fmtRange, parseClock, useCoach } from '../lib/coach'
+import { fmtTarget, parseClock, useCoach } from '../lib/coach'
 import { goalGap, vdotOf, ZONES } from '../lib/pace'
 import { useStore } from '../lib/store'
 import { errorMessage } from '../lib/supabase'
@@ -68,15 +68,15 @@ function LevelCard() {
                 {z.label}
                 <span className="muted">{z.hint}</span>
               </th>
-              <td>{fmtRange(paces[z.zone])}</td>
+              <td>{fmtTarget(paces[z.zone])}</td>
             </tr>
           ))}
         </tbody>
       </table>
       <p className="muted chart-note">
         {estimated
-          ? `En min/km. Estimées d’après tes sorties des 4 derniers mois (indice VDOT ${fmt1(vdot)}, méthode Daniels). Elles ne sont pas courues à fond : ces allures sont prudentes. Note une course ou une sortie à fond (ressenti 8/10 ou plus) pour les affiner.`
-          : `En min/km. Indice VDOT ${fmt1(vdot)} (méthode Daniels), mis à jour automatiquement avec tes dernières courses et sorties à fond (90 derniers jours).`}
+          ? `Allure cible en min/km, à viser à 5 s près. Estimées d’après tes sorties des 4 derniers mois (indice VDOT ${fmt1(vdot)}, méthode Daniels). Elles ne sont pas courues à fond : ces allures sont prudentes. Note une course ou une sortie à fond (ressenti 8/10 ou plus) pour les affiner.`
+          : `Allure cible en min/km, à viser à 5 s près. Indice VDOT ${fmt1(vdot)} (méthode Daniels), mis à jour automatiquement avec tes dernières courses et sorties à fond (90 derniers jours).`}
       </p>
     </section>
   )

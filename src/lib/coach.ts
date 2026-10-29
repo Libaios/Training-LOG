@@ -35,6 +35,8 @@ export function useCoach(): CoachContext {
 }
 
 export const fmtRange = (r: PaceRange) => `${fmtPace(r.fast)}–${fmtPace(r.slow)}`
+/** Allure cible fixe d'une zone. */
+export const fmtTarget = (r: PaceRange) => fmtPace(r.target)
 
 export function daysUntil(iso: string, from = todayISO()): number {
   return Math.round((fromISODate(iso).getTime() - fromISODate(from).getTime()) / 86400000)

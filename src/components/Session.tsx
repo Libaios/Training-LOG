@@ -1,4 +1,4 @@
-import { fmtRange, sessionTarget, useCoach } from '../lib/coach'
+import { fmtTarget, sessionTarget, useCoach } from '../lib/coach'
 import { zoneLabel, type Zone } from '../lib/pace'
 import { fmtDate, fmtPace, fmtWeekday, fromISODate, paceOf } from '../lib/format'
 import { useStore } from '../lib/store'
@@ -66,7 +66,7 @@ export function KeyPace({ session }: { session: PlanSession }) {
       {target && <span className="today-target">{target}</span>}
       {step && (
         <span className="key-pace-value">
-          <strong>{paces ? `${fmtRange(paces[step.zone])} /km` : ZONE_FEEL[step.zone]}</strong>
+          <strong>{paces ? `${fmtTarget(paces[step.zone])} /km` : ZONE_FEEL[step.zone]}</strong>
           <span className="muted">
             {quality ? `${zoneLabel(step.zone)} : ${step.label}` : paces ? ZONE_FEEL[step.zone] : zoneLabel(step.zone)}
           </span>
@@ -94,7 +94,7 @@ export function SessionSteps({ steps }: { steps: StructureStep[] }) {
             {step.zone && (
               <div className="step-pace">
                 <span className="step-zone">{zoneLabel(step.zone)}</span>
-                {paces && <span className="step-range">{fmtRange(paces[step.zone])} /km</span>}
+                {paces && <span className="step-range">{fmtTarget(paces[step.zone])} /km</span>}
                 <span className={paces ? 'step-feel-sub' : 'step-feel'}>{ZONE_FEEL[step.zone]}</span>
               </div>
             )}
@@ -135,7 +135,7 @@ export function SessionRow({ session }: { session: PlanSession }) {
         {!run && session.status !== 'sautee' && step && (
           <span className={`row-pace tone-${tone}`}>
             {quality && <span>{zoneLabel(step.zone)} </span>}
-            <strong>{paces ? `${fmtRange(paces[step.zone])} /km` : ZONE_FEEL[step.zone]}</strong>
+            <strong>{paces ? `${fmtTarget(paces[step.zone])} /km` : ZONE_FEEL[step.zone]}</strong>
           </span>
         )}
       </span>

@@ -68,7 +68,11 @@ export function referenceVdot(perfs: Performance[], today = todayISO()): { vdot:
   return best
 }
 
-export type PaceRange = { fast: number; slow: number }
+/** Allure arrondie aux 5 s : un repère simple à viser sur la montre. */
+const roundPace = (sec: number) => Math.round(sec / 5) * 5
+
+/** Fourchette (pour juger une sortie) et allure cible fixe affichée dans les séances. */
+export type PaceRange = { fast: number; slow: number; target: number }
 export type Paces = Record<Zone, PaceRange>
 
 /** Fourchettes d'allure par zone (s/km). L'allure semi suit l'objectif s'il est fixé. */
@@ -76,13 +80,14 @@ export function pacesFor(vdot: number, profile: Pick<RunnerProfile, 'goal_time_s
   const at = (f: number) => paceAtFraction(vdot, f)
   const raceKm = profile?.race_distance_km ?? 21.0975
   const semi = profile?.goal_time_sec ? profile.goal_time_sec / raceKm : predictTime(vdot, raceKm) / raceKm
+  const zone = (fast: number, mid: number, slow: number): PaceRange => ({ fast: at(fast), slow: at(slow), target: roundPace(at(mid)) })
   return {
-    X: { fast: at(0.62), slow: at(0.57) },
-    E: { fast: at(0.7), slow: at(0.62) },
-    S: { fast: semi - 3, slow: semi + 3 },
-    T: { fast: at(0.89), slow: at(0.87) },
-    I: { fast: at(0.98), slow: at(0.96) },
-    R: { fast: at(1.06), slow: at(1.04) },
+    X: zone(0.62, 0.595, 0.57),
+    E: zone(0.7, 0.66, 0.62),
+    S: { fast: semi - 3, slow: semi + 3, target: Math.round(semi) },
+    T: zone(0.89, 0.88, 0.87),
+    I: zone(0.98, 0.97, 0.96),
+    R: zone(1.06, 1.05, 1.04),
   }
 }
 
