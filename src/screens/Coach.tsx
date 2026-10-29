@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { PageHeader } from '../components/Layout'
+import { Icon } from '../components/Icon'
 import { useStore } from '../lib/store'
 import { errorMessage } from '../lib/supabase'
 import { useToast } from '../lib/ui'
@@ -13,51 +14,77 @@ const KIND_LABEL = {
   conseil: 'Conseil',
 } as const
 
-const dtf = new Intl.DateTimeFormat('fr-FR', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+const dtf = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
 const when = (iso: string) => dtf.format(new Date(iso))
 
-const PAGE = 15
+const PAGE = 8
 
-type Item = { at: string; request?: CoachRequest; note?: CoachNote }
+const shorten = (text: string, max = 60) => {
+  const flat = text.replace(/\s+/g, ' ').trim()
+  return flat.length > max ? `${flat.slice(0, max).replace(/\s+\S*$/, '')}…` : flat
+}
 
-function Exchange({ r }: { r: CoachRequest }) {
+/** Une demande : son titre en une ligne, le détail (ton message et la réponse) en l'ouvrant. */
+function RequestRow({ r }: { r: CoachRequest }) {
   const { sessionById } = useStore()
   const session = r.session_id ? sessionById.get(r.session_id) : undefined
   const state = requestState(r)
+  const message = stripSessionPrefix(r.message)
   return (
-    <li className="exchange">
-      <div className="exchange-meta muted">
-        {session ? (
-          <a href={`#/seance/${session.id}`}>Séance : {session.title}</a>
-        ) : (
-          <span />
-        )}
-        <span>{when(r.created_at)}</span>
-      </div>
-      <p className="comment-me">{stripSessionPrefix(r.message)}</p>
-      {state === 'traitee' ? (
-        r.response && <p className="comment-coach">{r.response}</p>
-      ) : (
-        <p className="working">
-          <span className="spinner" aria-hidden />
-          {state === 'en_cours' ? 'Le coach répond…' : 'En attente du coach…'}
-        </p>
-      )}
+    <li>
+      <details className="recap-row">
+        <summary>
+          <span className="row-main">
+            <span className="row-title">{r.summary ?? shorten(message)}</span>
+            <span className="row-sub">
+              {when(r.created_at)}
+              {session ? `, séance « ${session.title} »` : ''}
+            </span>
+          </span>
+          {state === 'traitee' ? (
+            <span className="status status-faite" aria-label="Répondu">
+              <Icon name="check" size={16} />
+            </span>
+          ) : (
+            <span className="spinner" role="img" aria-label={state === 'en_cours' ? 'Le coach répond' : 'En attente'} />
+          )}
+        </summary>
+        <div className="recap-detail">
+          <p className="comment-me">{message}</p>
+          {state === 'traitee' ? (
+            r.response && <p className="comment-coach">{r.response}</p>
+          ) : (
+            <p className="muted">{state === 'en_cours' ? 'Le coach répond…' : 'En attente du coach…'}</p>
+          )}
+          {session && (
+            <a className="btn btn-text btn-small" href={`#/seance/${session.id}`}>
+              Voir la séance
+            </a>
+          )}
+        </div>
+      </details>
     </li>
   )
 }
 
-function NoteItem({ n }: { n: CoachNote }) {
+/** Un message du coach : son titre, le texte en l'ouvrant (ouvert d'office s'il est nouveau). */
+function NoteRow({ n }: { n: CoachNote }) {
   return (
     <li>
-      <article className={`note note-${n.kind}${n.read ? '' : ' is-new'}`}>
-        <div className="note-head">
-          <span className="stag stag-neutral">{KIND_LABEL[n.kind]}</span>
-          <span className="muted">{when(n.created_at)}</span>
+      <details className={`recap-row${n.read ? '' : ' is-new'}`} open={!n.read}>
+        <summary>
+          <span className="row-main">
+            <span className="row-title">{n.title}</span>
+            <span className="row-sub">
+              {KIND_LABEL[n.kind]}, {when(n.created_at)}
+            </span>
+          </span>
+          <Icon name="chevron" size={18} />
+        </summary>
+        <div className="recap-detail">
+          <p className="note-body">{n.body}</p>
         </div>
-        <h3>{n.title}</h3>
-        <p className="note-body">{n.body}</p>
-      </article>
+      </details>
     </li>
   )
 }
@@ -67,7 +94,8 @@ export function Coach() {
   const toast = useToast()
   const [message, setMessage] = useState('')
   const [busy, setBusy] = useState(false)
-  const [shown, setShown] = useState(PAGE)
+  const [shownRequests, setShownRequests] = useState(PAGE)
+  const [shownNotes, setShownNotes] = useState(PAGE)
   const marked = useRef(false)
 
   // Les messages affichés sont considérés comme lus (une seule fois par visite).
@@ -93,12 +121,6 @@ export function Coach() {
     }
   }
 
-  // Un seul fil, du plus récent au plus ancien : tes messages avec la réponse, et les notes du coach.
-  const items: Item[] = [
-    ...coachRequests.map((r) => ({ at: r.created_at, request: r })),
-    ...coachNotes.map((n) => ({ at: n.created_at, note: n })),
-  ].sort((a, b) => b.at.localeCompare(a.at))
-
   return (
     <main className="screen">
       <PageHeader title="Coach" />
@@ -113,17 +135,36 @@ export function Coach() {
         </button>
       </form>
 
-      {items.length > 0 && (
-        <ul className="feed">
-          {items.slice(0, shown).map((it) =>
-            it.request ? <Exchange key={it.request.id} r={it.request} /> : <NoteItem key={it.note!.id} n={it.note!} />,
+      {coachRequests.length > 0 && (
+        <section className="section">
+          <h2>Tes demandes</h2>
+          <ul className="list compact">
+            {coachRequests.slice(0, shownRequests).map((r) => (
+              <RequestRow key={r.id} r={r} />
+            ))}
+          </ul>
+          {coachRequests.length > shownRequests && (
+            <button type="button" className="btn btn-text" onClick={() => setShownRequests(shownRequests + PAGE)}>
+              Plus anciennes
+            </button>
           )}
-        </ul>
+        </section>
       )}
-      {items.length > shown && (
-        <button type="button" className="btn btn-text" onClick={() => setShown(shown + PAGE)}>
-          Messages plus anciens
-        </button>
+
+      {coachNotes.length > 0 && (
+        <section className="section">
+          <h2>Messages du coach</h2>
+          <ul className="list compact">
+            {coachNotes.slice(0, shownNotes).map((n) => (
+              <NoteRow key={n.id} n={n} />
+            ))}
+          </ul>
+          {coachNotes.length > shownNotes && (
+            <button type="button" className="btn btn-text" onClick={() => setShownNotes(shownNotes + PAGE)}>
+              Plus anciens
+            </button>
+          )}
+        </section>
       )}
     </main>
   )

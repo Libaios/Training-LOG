@@ -2503,3 +2503,52 @@ body:has(.save-bar) .toast-region {
   gap: 6px;
   font-size: 15px;
 }
+
+/* Récap repliable (onglet Coach) */
+.recap-row > summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  min-height: 56px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.recap-row > summary::-webkit-details-marker {
+  display: none;
+}
+
+.recap-row > summary > svg {
+  color: var(--muted);
+  flex-shrink: 0;
+  transition: transform 0.15s;
+}
+
+.recap-row[open] > summary > svg {
+  transform: rotate(90deg);
+}
+
+.recap-row.is-new > summary .row-title::after {
+  content: ' • nouveau';
+  color: var(--strength);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.recap-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 14px 14px;
+  font-size: 15px;
+}
+
+.recap-detail .btn {
+  align-self: flex-start;
+  padding-left: 0;
+}
+
+.recap-row .spinner {
+  flex-shrink: 0;
+}

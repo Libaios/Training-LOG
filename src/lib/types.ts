@@ -230,6 +230,8 @@ export type CoachRequest = {
   session_id: string | null
   /** Pris en charge par le coach (réponse en cours). */
   claimed_at: string | null
+  /** Titre court écrit par le coach pour le récap. */
+  summary: string | null
 }
 
 export type CoachFire = {
