@@ -126,6 +126,8 @@ export type Step = {
   duration_min?: number
   zone?: string
   recovery?: string
+  /** Allure fixée (s/km), demandée par le coureur ; sinon la cible de la zone. */
+  pace_sec?: number
 }
 
 export const SESSION_COLUMNS =
@@ -184,6 +186,7 @@ function stepText(s: Step): string {
   if (s.distance_km && !s.label.includes('×')) parts.push(km(s.distance_km))
   if (s.duration_min) parts.push(`${s.duration_min} min`)
   if (s.zone) parts.push(`zone ${s.zone}`)
+  if (s.pace_sec) parts.push(`allure fixée ${fmtPace(s.pace_sec)}`)
   if (s.recovery) parts.push(`récup ${s.recovery}`)
   return parts.join(' ')
 }

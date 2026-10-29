@@ -2,13 +2,13 @@ import { useState } from 'react'
 import { EditorHeader, Empty } from '../components/Layout'
 import { Icon } from '../components/Icon'
 import { PaceInput, paceFromFields } from '../components/PaceInput'
-import { KeyPace, SessionSteps, SessionTag } from '../components/Session'
+import { KeyPace, keyStep, SessionSteps, SessionTag } from '../components/Session'
 import { SessionComments } from '../components/SessionComments'
 import { sessionTarget, weekLabel } from '../lib/coach'
 import { useStore, type SessionPatch } from '../lib/store'
 import { errorMessage } from '../lib/supabase'
 import { addDays, fmt1, fmtClock, fmtDate, fmtDateLong, fmtPace, paceFields, paceOf, parseDecimal, parseIntOrNull, toInput, todayISO, weekStart } from '../lib/format'
-import { SESSION_TYPES, type PlanSession, type SessionType } from '../lib/types'
+import { SESSION_TYPES, sessionTone, type PlanSession, type SessionType, type StructureStep } from '../lib/types'
 import { useToast } from '../lib/ui'
 import { navigate } from '../lib/router'
 
@@ -38,14 +38,53 @@ function paceFromForm(f: Form): number {
   return km && min ? (min * 60) / km : NaN
 }
 
+const isQuality = (type: SessionType) => ['quality', 'race'].includes(sessionTone(type))
+
+/** Rythme affiché à l'ouverture de l'éditeur : l'allure fixée s'il y en a une, sinon distance et durée. */
+function initialPace(s?: PlanSession) {
+  const fixed = s ? keyStep(s.structure, isQuality(s.session_type))?.pace_sec : undefined
+  return paceFields(fixed ?? paceFromForm(formFrom(s)))
+}
+
+const DEFAULT_ZONE: Record<SessionType, NonNullable<StructureStep['zone']>> = {
+  footing: 'E',
+  recuperation: 'X',
+  sortie_longue: 'E',
+  seuil: 'T',
+  fractionne: 'I',
+  allure_semi: 'S',
+  cotes: 'R',
+  test: 'S',
+  course: 'S',
+}
+
+/**
+ * Rythme saisi à la main : il devient l'allure fixée de la partie principale de la séance
+ * (les parties en endurance d'une séance facile ou lente, la partie rapide d'une séance de qualité).
+ * Rythme effacé : la séance revient aux allures calculées.
+ */
+function withPace(steps: StructureStep[], pace: number | null, type: SessionType, title: string, km: number | null): StructureStep[] {
+  const sec = pace ? Math.round(pace) : null
+  if (!steps.length) return sec ? [{ label: title, zone: DEFAULT_ZONE[type], ...(km ? { distance_km: km } : {}), pace_sec: sec }] : []
+  const quality = isQuality(type)
+  const key = keyStep(steps, quality)
+  return steps.map((step) => {
+    if (step !== key && (quality || step.zone !== 'E')) return step
+    const { pace_sec: _old, ...rest } = step
+    return sec ? { ...rest, pace_sec: sec } : rest
+  })
+}
+
 export function SessionDetail({ id }: { id?: string }) {
   const store = useStore()
   const toast = useToast()
   const session = id ? store.sessionById.get(id) : undefined
   const [editing, setEditing] = useState(!id)
   const [form, setForm] = useState<Form>(() => formFrom(session))
-  const [pace, setPace] = useState(() => paceFields(paceFromForm(formFrom(session))))
+  const [pace, setPace] = useState(() => initialPace(session))
   const [driver, setDriver] = useState<'duration' | 'pace'>('duration')
+  // Rythme modifié à la main : il devient l'allure affichée de la séance.
+  const [paceTouched, setPaceTouched] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -89,6 +128,7 @@ export function SessionDetail({ id }: { id?: string }) {
   function updatePace(min: string, sec: string) {
     setPace({ min, sec })
     setDriver('pace')
+    setPaceTouched(true)
     const p = paceFromFields(min, sec)
     const km = parseDecimal(form.distance)
     const duration = parseIntOrNull(form.duration)
@@ -129,7 +169,10 @@ export function SessionDetail({ id }: { id?: string }) {
       locked: true,
     }
     // Un changement de type rend le déroulé prévu caduc.
-    if (session && form.type !== session.session_type) patch.structure = []
+    const typeChanged = !!session && form.type !== session.session_type
+    const steps = typeChanged ? [] : (session?.structure ?? [])
+    if (paceTouched) patch.structure = withPace(steps, paceFromFields(pace.min, pace.sec), form.type, form.title.trim(), distance)
+    else if (typeChanged) patch.structure = []
     await act(async () => {
       const newId = await store.saveSession(patch, id)
       if (!id) navigate(`seance/${newId}`, { replace: true })
@@ -288,7 +331,7 @@ export function SessionDetail({ id }: { id?: string }) {
             Je l’ai faite
           </a>
         )}
-        <button type="button" className="btn btn-outline btn-block" onClick={() => { setForm(formFrom(s)); setPace(paceFields(paceFromForm(formFrom(s)))); setDriver('duration'); setEditing(true) }}>
+        <button type="button" className="btn btn-outline btn-block" onClick={() => { setForm(formFrom(s)); setPace(initialPace(s)); setDriver('duration'); setPaceTouched(false); setEditing(true) }}>
           Modifier
         </button>
         {s.status === 'prevue' && (

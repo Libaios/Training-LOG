@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { dayAdvice, recoverySec, sessionTimeSec, sortSessions } from '../src/lib/week'
+import { dayAdvice, recoverySec, sessionTimeSec, sortSessions, stepPaceSec } from '../src/lib/week'
 import type { PlanSession, Run } from '../src/lib/types'
 
 // Semaine du lundi 2 au dimanche 8 novembre 2026 : une rapide et une lente, rangées au dimanche.
@@ -90,5 +90,12 @@ assert.equal(sessionTimeSec({ target_distance_km: 4, target_duration_min: null, 
 assert.equal(sessionTimeSec({ target_distance_km: 4, target_duration_min: null, structure: [] }, P), 1600)
 assert.equal(sessionTimeSec({ target_distance_km: 4, target_duration_min: 30, structure: [] }, null), 1800)
 assert.equal(sessionTimeSec({ target_distance_km: 4, target_duration_min: null, structure: [] }, null), null)
+
+// Allure fixée par le coureur : elle passe avant la cible de la zone, y compris dans le temps estimé.
+assert.equal(stepPaceSec({ zone: 'E', pace_sec: 375 }, P), 375)
+assert.equal(stepPaceSec({ zone: 'E' }, P), 400)
+assert.equal(stepPaceSec({ zone: 'E' }, null), null)
+assert.equal(stepPaceSec({ zone: 'E', pace_sec: 375 }, null), 375)
+assert.equal(sessionTimeSec({ target_distance_km: 5, target_duration_min: null, structure: [{ label: 'Footing', zone: 'E', distance_km: 5, pace_sec: 375 }] }, P), 1875)
 
 console.log('semaine : tous les tests passent')

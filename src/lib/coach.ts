@@ -6,7 +6,7 @@ import { addDays, fmtPace, fromISODate, todayISO, weekStart } from './format'
 import type { PlanSession, RunnerProfile } from './types'
 import { sortSessions } from './week'
 
-export { dayAdvice, isTodo, plannedKm, runsKmBetween, sessionTarget, sessionTimeSec, sortSessions, weekLabel, WEEK_RULES, type DayAdvice } from './week'
+export { dayAdvice, isTodo, plannedKm, runsKmBetween, sessionTarget, sessionTimeSec, sortSessions, stepPaceSec, weekLabel, WEEK_RULES, type DayAdvice } from './week'
 
 export type CoachContext = {
   profile: RunnerProfile | null

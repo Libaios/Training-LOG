@@ -18,8 +18,8 @@ Base Supabase, projet `zmiazoekdvdwoqqdysse` (connecteur Supabase, outil `execut
 ### Une séance (`plan_sessions`)
 - `session_type` : `footing`, `recuperation`, `sortie_longue`, `seuil`, `fractionne`, `allure_semi`, `cotes`, `test`, `course`
 - `title` court (« 6 × 800 m », « Sortie longue 14 km »), `description` facultative (1 à 2 phrases)
-- `structure` (jsonb) : liste d’étapes `{ "label", "repeat"?, "distance_km"?, "duration_min"?, "zone"?, "recovery"? }`
-- **zones** : `X` récupération, `E` endurance, `S` allure semi visée, `T` seuil, `I` intervalles, `R` vitesse. N’écris jamais d’allure en dur : l’appli calcule les fourchettes à partir des perfs (VDOT de Daniels) et de l’objectif, elles se mettent à jour toutes seules
+- `structure` (jsonb) : liste d’étapes `{ "label", "repeat"?, "distance_km"?, "duration_min"?, "zone"?, "recovery"?, "pace_sec"? }`
+- **zones** : `X` récupération, `E` endurance, `S` allure semi visée, `T` seuil, `I` intervalles, `R` vitesse. N’écris pas d’allure en dur : l’appli calcule les fourchettes à partir des perfs (VDOT de Daniels) et de l’objectif, elles se mettent à jour toutes seules. Seule exception : le coureur demande un rythme précis (« à 6:15 avec un ami ») ou l’a fixé lui-même dans l’appli. Mets alors `pace_sec` (secondes par km, 6:15 = 375) sur l’étape concernée : l’appli affiche cette allure à la place de la cible de la zone. Ne retire jamais un `pace_sec` sans qu’il le demande
 - `target_distance_km` (total, échauffement compris), `target_duration_min` si utile
 - `phase` : `base`, `developpement`, `specifique`, `affutage`, `course` ; `week_number` : 1 = semaine (lundi→dimanche) de la première séance du plan
 - **jour libre** : `flexible = true` (par défaut) : la séance se fait n’importe quel jour de sa semaine (lundi → dimanche), au choix du coureur. `scheduled_on` = **le dimanche de cette semaine**. `flexible = false` seulement pour une date imposée (la course)

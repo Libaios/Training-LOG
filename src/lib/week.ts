@@ -1,6 +1,6 @@
 // Semaines à jour libre : ordre des séances, règles et conseil du jour (sans React, testé à part).
 import { addDays, fmtDateShort, fromISODate, weekStart } from './format'
-import { sessionTone, type PlanSession, type Run, type SessionTone } from './types'
+import { sessionTone, type PlanSession, type Run, type SessionTone, type StructureStep } from './types'
 
 const daysBetween = (from: string, to: string) =>
   Math.round((fromISODate(to).getTime() - fromISODate(from).getTime()) / 86400000)
@@ -178,16 +178,24 @@ export function recoverySec(text: string | undefined): number | null {
  * Temps total estimé d'une séance (s) : la durée cible si elle est fixée, sinon la somme des étapes
  * (durée, ou distance × allure de la zone, récups comprises), sinon la distance à allure facile.
  */
+type ZonePaces = Partial<Record<'X' | 'E' | 'S' | 'T' | 'I' | 'R', { target: number }>> | null
+
+/** Allure d'une étape : fixée (rythme demandé par le coureur) ou, sinon, cible de sa zone. */
+export function stepPaceSec(step: Pick<StructureStep, 'zone' | 'pace_sec'>, paces: ZonePaces): number | null {
+  if (step.pace_sec && step.pace_sec > 0) return step.pace_sec
+  return step.zone ? (paces?.[step.zone]?.target ?? null) : null
+}
+
 export function sessionTimeSec(
   s: Pick<PlanSession, 'structure' | 'target_distance_km' | 'target_duration_min'>,
-  paces: Partial<Record<'X' | 'E' | 'S' | 'T' | 'I' | 'R', { target: number }>> | null,
+  paces: ZonePaces,
 ): number | null {
   if (s.target_duration_min) return s.target_duration_min * 60
   let total = 0
   let ok = s.structure.length > 0
   for (const step of s.structure) {
     const n = step.repeat ?? 1
-    const pace = step.zone ? paces?.[step.zone]?.target : paces?.E?.target
+    const pace = step.zone || step.pace_sec ? stepPaceSec(step, paces) : paces?.E?.target
     if (step.duration_min) total += step.duration_min * 60 * n
     else if (step.distance_km && pace) total += step.distance_km * pace * n
     else ok = false

@@ -101,7 +101,7 @@ export type ApiOutcome = { answered: number; transmitted: number; limited: boole
 const INSTRUCTIONS = `Tu es le coach course de l’appli « Carnet d’entraînement » : tu prépares le coureur au semi-marathon du dossier. Il vient d’écrire un message dans l’appli et attend ta réponse tout de suite ; il ne voit que ta réponse (et la note si tu en écris une). Personne ne validera rien : agis, ne pose pas de question pour gagner du temps.
 
 Règles d’entraînement
-- Séance : session_type (footing, recuperation, sortie_longue, seuil, fractionne, allure_semi, cotes, test), titre court (« 6 × 800 m »), étapes {label, repeat, distance_km, duration_min, zone, recovery}, target_distance_km total échauffement compris. Zones : X récupération, E endurance, S allure semi, T seuil, I intervalles, R vitesse. Jamais d’allure en dur dans une séance : l’appli les calcule.
+- Séance : session_type (footing, recuperation, sortie_longue, seuil, fractionne, allure_semi, cotes, test), titre court (« 6 × 800 m »), étapes {label, repeat, distance_km, duration_min, zone, recovery}, target_distance_km total échauffement compris. Zones : X récupération, E endurance, S allure semi, T seuil, I intervalles, R vitesse. Pas d’allure en dur (l’appli les calcule), sauf si le coureur demande un rythme précis : mets alors allure (m:ss) sur l’étape concernée, elle s’affiche à la place de la cible de la zone. Garde une « allure fixée » du dossier quand tu réécris une séance, sauf s’il demande autre chose.
 - Plan : le nombre de séances par semaine du profil (une rapide, une lente à 2), à jour libre : le coureur choisit ses jours, tu donnes la semaine, jamais un jour. Au moins un jour sans course entre deux séances, pas la rapide la veille ou le lendemain de la lente, une séance ratée ne se rattrape pas en doublant.
 - Phases : base (endurance, lignes droites, côtes courtes, fartlek), développement (intervalles I, seuil T), spécifique (blocs à allure S de plus en plus longs, seuil), affûtage 2 semaines (volume −30 % puis −50 %, intensité courte gardée), semaine de course.
 - 75 à 80 % du volume en E. Volume hebdo +10 % au plus d’une semaine sur l’autre, semaine allégée toutes les 3 à 4 semaines. Sortie longue +1 à 2 km par semaine, pic de 18 à 21 km trois semaines avant la course.
@@ -137,6 +137,7 @@ const stepSchema = {
     duration_min: { type: 'number' },
     zone: { type: 'string', enum: ZONES },
     recovery: { type: 'string', description: 'ex. « 2 min trot »' },
+    allure: { type: 'string', description: 'm:ss par km, seulement si le coureur demande un rythme précis ; sinon la zone décide' },
   },
   required: ['label'],
 }
@@ -258,6 +259,13 @@ type Ctx = {
 
 class ToolError extends Error {}
 
+/** Allure fixée : « 6:15 » ou des secondes par km ; entre 2:30 et 15:00, sinon ignorée. */
+function paceSec(v: unknown): number | null {
+  const m = typeof v === 'string' ? v.trim().match(/^(\d{1,2})[:'h](\d{2})$/) : null
+  const sec = m ? Number(m[1]) * 60 + Number(m[2]) : typeof v === 'number' ? Math.round(v) : NaN
+  return sec >= 150 && sec <= 900 ? sec : null
+}
+
 function cleanSteps(raw: unknown): Step[] {
   if (!Array.isArray(raw) || !raw.length) throw new ToolError('structure : liste d’étapes non vide attendue')
   return raw.slice(0, 20).map((s, i) => {
@@ -270,6 +278,8 @@ function cleanSteps(raw: unknown): Step[] {
     if (typeof x.duration_min === 'number' && x.duration_min > 0 && x.duration_min <= 300) step.duration_min = x.duration_min
     if (typeof x.zone === 'string' && ZONES.includes(x.zone)) step.zone = x.zone
     if (typeof x.recovery === 'string' && x.recovery.trim()) step.recovery = x.recovery.trim().slice(0, 60)
+    const pace = paceSec(x.allure ?? x.pace_sec)
+    if (pace) step.pace_sec = pace
     return step
   })
 }

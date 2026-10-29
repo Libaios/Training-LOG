@@ -173,6 +173,8 @@ export type StructureStep = {
   duration_min?: number
   zone?: 'X' | 'E' | 'S' | 'T' | 'I' | 'R'
   recovery?: string
+  /** Allure fixée (s/km), quand le coureur a demandé un rythme précis ; sinon la cible de la zone. */
+  pace_sec?: number
 }
 
 export const PHASES = [
