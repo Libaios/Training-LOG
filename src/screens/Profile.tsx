@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { PageHeader } from '../components/Layout'
 import { Icon } from '../components/Icon'
 import { recapOf } from '../lib/recap'
-import { fmtRange, ISO_DAYS, parseClock, useCoach } from '../lib/coach'
+import { fmtRange, parseClock, useCoach } from '../lib/coach'
 import { goalGap, vdotOf, ZONES } from '../lib/pace'
 import { useStore } from '../lib/store'
 import { errorMessage } from '../lib/supabase'
@@ -235,8 +235,6 @@ type ProfileForm = {
   raceDate: string
   goal: string
   sessions: number
-  days: number[]
-  longDay: number
   weeklyKm: string
   longest: string
   constraints: string
@@ -247,8 +245,6 @@ const formFrom = (p: RunnerProfile): ProfileForm => ({
   raceDate: p.race_date,
   goal: p.goal_time_sec ? fmtClock(p.goal_time_sec) : '',
   sessions: p.sessions_per_week,
-  days: [...p.available_days].sort(),
-  longDay: p.long_run_day,
   weeklyKm: p.current_weekly_km === null ? '' : toInput(p.current_weekly_km),
   longest: p.longest_recent_run_km === null ? '' : toInput(p.longest_recent_run_km),
   constraints: p.constraints ?? '',
@@ -267,8 +263,6 @@ function GoalAndAvailability({ profile }: { profile: RunnerProfile }) {
     e.preventDefault()
     const goal = form.goal.trim() ? parseClock(form.goal) : null
     if (form.goal.trim() && !goal) return setError('Objectif invalide : écris par exemple 1:55:00.')
-    if (!form.days.length) return setError('Choisis au moins un jour disponible.')
-    if (form.days.length < form.sessions) return setError('Il faut au moins autant de jours disponibles que de séances par semaine.')
     setError(null)
     setBusy(true)
     try {
@@ -277,8 +271,6 @@ function GoalAndAvailability({ profile }: { profile: RunnerProfile }) {
         race_date: form.raceDate,
         goal_time_sec: goal,
         sessions_per_week: form.sessions,
-        available_days: form.days,
-        long_run_day: form.longDay,
         current_weekly_km: parseDecimal(form.weeklyKm),
         longest_recent_run_km: parseDecimal(form.longest),
         constraints: form.constraints.trim() || null,
@@ -290,9 +282,6 @@ function GoalAndAvailability({ profile }: { profile: RunnerProfile }) {
       setBusy(false)
     }
   }
-
-  const toggleDay = (d: number) =>
-    update({ days: form.days.includes(d) ? form.days.filter((x) => x !== d) : [...form.days, d].sort() })
 
   return (
     <form className="section profile-form" onSubmit={save}>
@@ -312,7 +301,7 @@ function GoalAndAvailability({ profile }: { profile: RunnerProfile }) {
         </label>
       </div>
 
-      <h2>Disponibilités</h2>
+      <h2>Séances</h2>
       <label className="field">
         <span>Séances de course par semaine</span>
         <div className="chips">
@@ -323,26 +312,7 @@ function GoalAndAvailability({ profile }: { profile: RunnerProfile }) {
           ))}
         </div>
       </label>
-      <fieldset className="field">
-        <legend>Jours où tu peux courir</legend>
-        <div className="day-picker">
-          {ISO_DAYS.map((d) => (
-            <button key={d.value} type="button" aria-pressed={form.days.includes(d.value)} aria-label={d.label} onClick={() => toggleDay(d.value)}>
-              {d.short}
-            </button>
-          ))}
-        </div>
-      </fieldset>
-      <label className="field">
-        <span>Jour de la sortie longue</span>
-        <select value={form.longDay} onChange={(e) => update({ longDay: Number(e.target.value) })}>
-          {ISO_DAYS.map((d) => (
-            <option key={d.value} value={d.value}>
-              {d.label}
-            </option>
-          ))}
-        </select>
-      </label>
+      <p className="muted">Pas de jour imposé : tu places tes séances quand tu veux dans la semaine.</p>
 
       <h2>Où tu en es</h2>
       <div className="form-grid even">
@@ -389,7 +359,7 @@ export function Profile() {
       </details>
       {profile && (
         <details className="fold">
-          <summary>Objectif et disponibilités</summary>
+          <summary>Objectif et séances par semaine</summary>
           <GoalAndAvailability profile={profile} />
         </details>
       )}

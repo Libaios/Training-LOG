@@ -145,6 +145,14 @@ export type SessionTone = (typeof SESSION_TYPES)[number]['tone']
 export const sessionTypeLabel = (t: SessionType) => SESSION_TYPES.find((x) => x.value === t)?.label ?? t
 export const sessionTone = (t: SessionType): SessionTone => SESSION_TYPES.find((x) => x.value === t)?.tone ?? 'easy'
 
+/** Nom court de la séance selon son ton : ce que le coureur retient (« la rapide », « la lente »). */
+export const SESSION_KIND: Record<SessionTone, string> = {
+  quality: 'Rapide',
+  easy: 'Facile',
+  long: 'Lente',
+  race: 'Course',
+}
+
 /** Type de sortie proposé quand on note une séance prévue. */
 export const runTypeForSession: Record<SessionType, RunType> = {
   footing: 'endurance',
@@ -196,6 +204,8 @@ export type PlanSession = {
   locked: boolean
   source: 'coach' | 'utilisateur'
   coach_comment: string | null
+  /** Jour libre : à faire n'importe quel jour de sa semaine ; scheduled_on = dimanche de cette semaine. */
+  flexible: boolean
   updated_at: string
 }
 

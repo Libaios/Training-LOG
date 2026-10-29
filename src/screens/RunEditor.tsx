@@ -3,7 +3,7 @@ import { EditorHeader, Empty } from '../components/Layout'
 import { Icon } from '../components/Icon'
 import { runDraftDuration, useStore } from '../lib/store'
 import { errorMessage } from '../lib/supabase'
-import { addDays, fmt1, fmtDate, fmtDateLong, fmtPace, parseDecimal, parseIntOrNull, toInput, todayISO } from '../lib/format'
+import { addDays, fmt1, fmtDate, fmtDateLong, fmtPace, parseDecimal, parseIntOrNull, toInput, todayISO, weekStart } from '../lib/format'
 import { RUN_TYPES, runTypeForSession, type PlanSession, type Run, type RunDraft } from '../lib/types'
 import { useToast } from '../lib/ui'
 import { navigate } from '../lib/router'
@@ -90,13 +90,15 @@ export function RunEditor({ id, sessionId }: { id?: string; sessionId?: string }
 
   const update = (patch: Partial<RunDraft>) => setDraft((d) => ({ ...d, ...patch }))
 
-  // Séances du plan proches de la date de la sortie, encore à faire (ou déjà liées à cette sortie).
+  // Séances encore à faire (ou déjà liées à cette sortie) : celles de la même semaine pour les jours libres,
+  // celles à 3 jours près pour les séances à date fixe.
   const candidates = draft.performedOn
     ? store.plan.filter(
         (p) =>
-          p.scheduled_on >= addDays(draft.performedOn, -3) &&
-          p.scheduled_on <= addDays(draft.performedOn, 3) &&
-          (p.status === 'prevue' || p.id === draft.plannedSessionId || p.id === existing?.planned_session_id),
+          (p.flexible
+            ? weekStart(p.scheduled_on) === weekStart(draft.performedOn)
+            : p.scheduled_on >= addDays(draft.performedOn, -3) && p.scheduled_on <= addDays(draft.performedOn, 3)) &&
+          (p.status === 'prevue' || p.status === 'modifiee' || p.id === draft.plannedSessionId || p.id === existing?.planned_session_id),
       )
     : []
   const linked = draft.plannedSessionId ? store.sessionById.get(draft.plannedSessionId) : undefined
@@ -183,7 +185,7 @@ export function RunEditor({ id, sessionId }: { id?: string; sessionId?: string }
             <option value="">Hors plan (run loisir, sortie en plus…)</option>
             {[...candidates, ...(linked && !candidates.includes(linked) ? [linked] : [])].map((p) => (
               <option key={p.id} value={p.id}>
-                {fmtDate(p.scheduled_on)} : {p.title}
+                {p.flexible ? `${p.title}${p.week_number ? ` (semaine ${p.week_number})` : ''}` : `${fmtDate(p.scheduled_on)} : ${p.title}`}
               </option>
             ))}
           </select>

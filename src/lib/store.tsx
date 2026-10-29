@@ -49,6 +49,7 @@ export type SessionPatch = Partial<
     | 'status'
     | 'locked'
     | 'coach_comment'
+    | 'flexible'
   >
 >
 
@@ -147,7 +148,7 @@ async function loadAll(): Promise<Data> {
     fetchAll<Performance>('performances', 'id,performed_on,distance_km,time_sec,kind,notes', [['performed_on', false]]),
     fetchAll<PlanSession>(
       'plan_sessions',
-      'id,scheduled_on,session_type,title,description,structure,target_distance_km,target_duration_min,phase,week_number,status,run_id,locked,source,coach_comment,updated_at',
+      'id,scheduled_on,session_type,title,description,structure,target_distance_km,target_duration_min,phase,week_number,status,run_id,locked,source,coach_comment,flexible,updated_at',
       [
         ['scheduled_on', true],
         ['created_at', true],

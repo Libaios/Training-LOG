@@ -7,7 +7,7 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "test": "tsx tests/pace.test.ts"
+    "test": "tsx tests/pace.test.ts && tsx tests/week.test.ts"
   },
   "dependencies": {
     "@fontsource/barlow": "^5.3.0",

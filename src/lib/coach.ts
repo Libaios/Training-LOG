@@ -3,7 +3,10 @@ import { useStore } from './store'
 import { effortPerfs } from './recap'
 import { pacesFor, predictTime, referenceVdot, type Paces, type PaceRange } from './pace'
 import { addDays, fmtPace, fromISODate, todayISO, weekStart } from './format'
-import type { PlanSession, Run, RunnerProfile } from './types'
+import type { PlanSession, RunnerProfile } from './types'
+import { sortSessions } from './week'
+
+export { dayAdvice, isTodo, plannedKm, runsKmBetween, sessionTarget, sortSessions, weekLabel, WEEK_RULES, type DayAdvice } from './week'
 
 export type CoachContext = {
   profile: RunnerProfile | null
@@ -42,25 +45,7 @@ export function groupByWeek(sessions: PlanSession[]): { monday: string; sessions
   }
   return Array.from(map.entries())
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([monday, list]) => ({
-      monday,
-      sessions: list.sort((a, b) => a.scheduled_on.localeCompare(b.scheduled_on)),
-    }))
-}
-
-export function plannedKm(sessions: PlanSession[]): number {
-  return sessions.filter((s) => s.status !== 'sautee').reduce((sum, s) => sum + (s.target_distance_km ?? 0), 0)
-}
-
-export function runsKmBetween(runs: Run[], from: string, toExclusive: string): number {
-  return runs.filter((r) => r.performed_on >= from && r.performed_on < toExclusive).reduce((s, r) => s + r.distance_km, 0)
-}
-
-export function sessionTarget(s: Pick<PlanSession, 'target_distance_km' | 'target_duration_min'>): string {
-  const parts: string[] = []
-  if (s.target_distance_km) parts.push(`${String(s.target_distance_km).replace('.', ',')} km`)
-  if (s.target_duration_min) parts.push(`${s.target_duration_min} min`)
-  return parts.join(', ')
+    .map(([monday, list]) => ({ monday, sessions: sortSessions(list) }))
 }
 
 /** Séances de la semaine en cours et de la suivante, à partir d'aujourd'hui. */

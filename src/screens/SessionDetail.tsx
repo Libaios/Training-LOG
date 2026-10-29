@@ -2,16 +2,17 @@ import { useState } from 'react'
 import { EditorHeader, Empty } from '../components/Layout'
 import { Icon } from '../components/Icon'
 import { SessionSteps, SessionTag } from '../components/Session'
-import { sessionTarget } from '../lib/coach'
+import { sessionTarget, weekLabel } from '../lib/coach'
 import { useStore, type SessionPatch } from '../lib/store'
 import { errorMessage } from '../lib/supabase'
-import { addDays, fmt1, fmtClock, fmtDateLong, fmtPace, paceOf, parseDecimal, parseIntOrNull, toInput, todayISO } from '../lib/format'
+import { addDays, fmt1, fmtClock, fmtDate, fmtDateLong, fmtPace, paceOf, parseDecimal, parseIntOrNull, toInput, todayISO, weekStart } from '../lib/format'
 import { phaseLabel, SESSION_TYPES, type PlanSession, type SessionType } from '../lib/types'
 import { useToast } from '../lib/ui'
 import { navigate } from '../lib/router'
 
 type Form = {
   date: string
+  flexible: boolean
   type: SessionType
   title: string
   distance: string
@@ -21,6 +22,7 @@ type Form = {
 
 const formFrom = (s?: PlanSession): Form => ({
   date: s?.scheduled_on ?? todayISO(),
+  flexible: s?.flexible ?? true,
   type: s?.session_type ?? 'footing',
   title: s?.title ?? '',
   distance: s?.target_distance_km ? toInput(s.target_distance_km) : '',
@@ -72,7 +74,9 @@ export function SessionDetail({ id }: { id?: string }) {
     if (form.distance.trim() && (distance === null || distance <= 0)) return setError('Distance invalide.')
     if (form.duration.trim() && (duration === null || duration <= 0)) return setError('Durée invalide.')
     const patch: SessionPatch = {
-      scheduled_on: form.date,
+      // Jour libre : rangée au dimanche de la semaine choisie.
+      scheduled_on: form.flexible ? addDays(weekStart(form.date), 6) : form.date,
+      flexible: form.flexible,
       session_type: form.type,
       title: form.title.trim(),
       target_distance_km: distance,
@@ -97,21 +101,51 @@ export function SessionDetail({ id }: { id?: string }) {
           backTo={id ? `seance/${id}` : 'plan'}
           backLabel="Annuler"
         />
-        <label className="field">
-          <span>Date</span>
-          <input type="date" value={form.date} onChange={(e) => update({ date: e.target.value })} />
-        </label>
-        <div className="chips">
-          {[0, 1, 2].map((n) => {
-            const d = addDays(todayISO(), n)
-            return (
-              <button key={n} type="button" className="chip" aria-pressed={form.date === d} onClick={() => update({ date: d })}>
-                {n === 0 ? 'Aujourd’hui' : n === 1 ? 'Demain' : 'Après-demain'}
-              </button>
-            )
-          })}
+        <div className="segmented" role="tablist" aria-label="Quand">
+          <button type="button" role="tab" aria-selected={form.flexible} onClick={() => update({ flexible: true })}>
+            Jour libre
+          </button>
+          <button type="button" role="tab" aria-selected={!form.flexible} onClick={() => update({ flexible: false })}>
+            Jour précis
+          </button>
         </div>
-        <p className="muted date-line">{form.date && fmtDateLong(form.date)}</p>
+        {form.flexible ? (
+          <>
+            <div className="chips">
+              {[0, 1, 2].map((n) => {
+                const d = addDays(weekStart(todayISO()), n * 7 + 6)
+                return (
+                  <button key={n} type="button" className="chip" aria-pressed={weekStart(form.date) === weekStart(d)} onClick={() => update({ date: d })}>
+                    {n === 0 ? 'Cette semaine' : n === 1 ? 'Semaine prochaine' : 'Dans 2 semaines'}
+                  </button>
+                )
+              })}
+            </div>
+            <label className="field">
+              <span>Ou n’importe quel jour de la semaine voulue</span>
+              <input type="date" value={form.date} onChange={(e) => update({ date: e.target.value })} />
+            </label>
+            <p className="muted date-line">{form.date && `Semaine ${weekLabel(form.date)}, le jour que tu veux`}</p>
+          </>
+        ) : (
+          <>
+            <label className="field">
+              <span>Date</span>
+              <input type="date" value={form.date} onChange={(e) => update({ date: e.target.value })} />
+            </label>
+            <div className="chips">
+              {[0, 1, 2].map((n) => {
+                const d = addDays(todayISO(), n)
+                return (
+                  <button key={n} type="button" className="chip" aria-pressed={form.date === d} onClick={() => update({ date: d })}>
+                    {n === 0 ? 'Aujourd’hui' : n === 1 ? 'Demain' : 'Après-demain'}
+                  </button>
+                )
+              })}
+            </div>
+            <p className="muted date-line">{form.date && fmtDateLong(form.date)}</p>
+          </>
+        )}
         <label className="field">
           <span>Type</span>
           <select value={form.type} onChange={(e) => update({ type: e.target.value as SessionType })}>
@@ -182,8 +216,8 @@ export function SessionDetail({ id }: { id?: string }) {
         </div>
         <h1>{s.title}</h1>
         <p className="muted">
-          {fmtDateLong(s.scheduled_on)}
-          {target ? `, ${target}` : ''}
+          {s.flexible ? `À faire ${weekLabel(s.scheduled_on)}, le jour que tu veux` : fmtDateLong(s.scheduled_on)}
+          {target ? `. ${target}` : ''}
         </p>
       </div>
       {s.description && <p>{s.description}</p>}
@@ -194,7 +228,7 @@ export function SessionDetail({ id }: { id?: string }) {
         <a className="done-line" href={`#/course/${run.id}`}>
           <Icon name="check" size={18} />
           <span>
-            Faite : {fmt1(run.distance_km)} km en {fmtClock(run.duration_sec)}, {fmtPace(paceOf(run.distance_km, run.duration_sec))} /km
+            Faite {fmtDate(run.performed_on).toLowerCase()} : {fmt1(run.distance_km)} km en {fmtClock(run.duration_sec)}, {fmtPace(paceOf(run.distance_km, run.duration_sec))} /km
             {run.rpe ? `, ressenti ${run.rpe}/10` : ''}
           </span>
         </a>

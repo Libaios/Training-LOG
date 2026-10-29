@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Empty, PageHeader } from '../components/Layout'
 import { Icon } from '../components/Icon'
 import { SessionRow } from '../components/Session'
-import { daysUntil, groupByWeek, plannedKm, runsKmBetween } from '../lib/coach'
+import { daysUntil, groupByWeek, plannedKm, runsKmBetween, WEEK_RULES } from '../lib/coach'
 import { useStore } from '../lib/store'
 import { addDays, fmt1, fmtDateLong, fmtDateShort, todayISO, weekStart } from '../lib/format'
 import { phaseLabel } from '../lib/types'
@@ -28,10 +28,17 @@ export function Plan() {
         }
       />
       {profile && plan.length > 0 && (
-        <p className="muted plan-intro">
-          Course le {fmtDateLong(profile.race_date).toLowerCase()}, dans {Math.max(0, Math.ceil(daysUntil(profile.race_date) / 7))}{' '}
-          semaines. Les séances modifiées à la main sont gardées telles quelles par le coach.
-        </p>
+        <>
+          <p className="muted plan-intro">
+            Course le {fmtDateLong(profile.race_date).toLowerCase()}, dans {Math.max(0, Math.ceil(daysUntil(profile.race_date) / 7))}{' '}
+            semaines. {profile.sessions_per_week} séances par semaine, sans jour imposé.
+          </p>
+          <ul className="rules">
+            {WEEK_RULES.map((r) => (
+              <li key={r}>{r}</li>
+            ))}
+          </ul>
+        </>
       )}
 
       {plan.length === 0 ? (

@@ -2227,3 +2227,128 @@ body:has(.save-bar) .toast-region {
   align-items: center;
   gap: 8px;
 }
+
+/* Accueil : conseil du jour et séances de la semaine (jours libres) */
+.verdict {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px;
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  border-left: 6px solid var(--verdict, var(--line));
+}
+
+.verdict-title {
+  font-family: var(--font-cond);
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--verdict-text, var(--ink));
+}
+
+.verdict-go {
+  --verdict: var(--run-fill);
+  --verdict-text: var(--run-strong);
+}
+
+.verdict-rest {
+  --verdict: var(--strength);
+  --verdict-text: var(--strength);
+}
+
+.verdict-done {
+  --verdict: var(--success);
+  --verdict-text: var(--success);
+}
+
+.verdict-race {
+  --verdict: var(--ink);
+}
+
+.week-sub {
+  font-size: 14px;
+  margin-top: -4px;
+}
+
+.week-sub a {
+  color: var(--strength);
+  font-weight: 600;
+}
+
+.week-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px 16px;
+  background: var(--surface);
+  border-radius: var(--r-lg);
+  border: 1.5px solid var(--line);
+  box-shadow: inset 0 4px 0 var(--tone);
+}
+
+.week-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-top: 2px;
+  font-size: 14px;
+}
+
+.week-card h3 {
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.15;
+}
+
+.week-card.is-faite,
+.week-card.is-sautee {
+  box-shadow: none;
+  gap: 8px;
+}
+
+.week-card.is-sautee h3 {
+  color: var(--muted);
+  text-decoration: line-through;
+}
+
+.kind-chip {
+  font-family: var(--font-cond);
+  font-size: 15px;
+  font-weight: 700;
+  width: 58px;
+}
+
+.step-feel {
+  font-size: 14px;
+  font-weight: 600;
+  max-width: 130px;
+}
+
+.step-S .step-feel,
+.step-T .step-feel,
+.step-I .step-feel,
+.step-R .step-feel {
+  color: var(--run-strong);
+}
+
+.note-link {
+  color: var(--ink);
+}
+
+.note-title {
+  font-size: 19px;
+  line-height: 1.2;
+}
+
+.rules {
+  margin: 0;
+  padding: 14px 16px 14px 34px;
+  background: var(--surface);
+  border-radius: var(--r-lg);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 15px;
+}

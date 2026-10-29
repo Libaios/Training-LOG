@@ -23,6 +23,8 @@ Lis `coach/COACH.md` et suis ses sections 2 et 4 :
 - si le plan change, écris une seule note `reprogrammation` dans `coach_notes` qui explique les changements ;
 - tiens compte des sorties enregistrées depuis `runner_profile.last_coach_review_at`, sans mettre à jour `last_coach_review_at` et sans écrire la note du soir (c’est le rôle de la revue du soir) ;
 - ne modifie jamais une séance passée (sauf pour la passer en `sautee` si le message le dit), une séance `locked`, une sortie ou une perf, ni l’objectif de temps sans que le message le demande ;
+- séances à jour libre : `flexible = true`, `scheduled_on` = dimanche de la semaine (voir `COACH.md`) ; n’impose jamais de jour ;
+- n’utilise jamais un connecteur Strava ou un autre compte sportif branché à cette session : ce n’est pas celui du coureur ;
 - douleur qui dure : conseille un avis médical.
 
 ## 3. Ce qui touche l’appli
@@ -32,7 +34,7 @@ Vite, React 19, TypeScript ; appli installable publiée sur GitHub Pages (`/Trai
 
 | Écran | Fichiers | Contenu |
 |---|---|---|
-| Aujourd’hui (accueil) | `src/screens/Today.tsx` | compte à rebours, séance du jour, semaine en cours, dernières sorties |
+| Aujourd’hui (accueil) | `src/screens/Today.tsx`, logique dans `src/lib/week.ts` (testée par `tests/week.test.ts`) | compte à rebours, conseil du jour (repos ou course), séances de la semaine à jour libre, dernier mot du coach |
 | Plan | `src/screens/Plan.tsx` | semaines jusqu’à la course, km prévus et faits |
 | Séance | `src/screens/SessionDetail.tsx` | déroulé, valider, déplacer, modifier, sauter |
 | Courses | `src/screens/RunList.tsx`, `RunEditor.tsx`, `src/components/RunsChart.tsx` | historique, graphique, saisie d’une sortie |

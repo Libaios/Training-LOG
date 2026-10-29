@@ -1,8 +1,19 @@
 import { fmtRange, sessionTarget, useCoach } from '../lib/coach'
-import { zoneLabel } from '../lib/pace'
-import { fmtWeekday, fromISODate } from '../lib/format'
-import { sessionTone, sessionTypeLabel, type PlanSession, type StructureStep } from '../lib/types'
+import { zoneLabel, type Zone } from '../lib/pace'
+import { fmtDate, fmtWeekday, fromISODate } from '../lib/format'
+import { useStore } from '../lib/store'
+import { SESSION_KIND, sessionTone, sessionTypeLabel, type PlanSession, type StructureStep } from '../lib/types'
 import { Icon } from './Icon'
+
+/** Sans perf de référence, l'allure se donne au ressenti. */
+const ZONE_FEEL: Record<Zone, string> = {
+  X: 'Très facile',
+  E: 'Facile, tu parles',
+  S: 'Allure de course',
+  T: 'Soutenu, phrases courtes',
+  I: 'Dur, quelques mots',
+  R: 'Vite et relâché',
+}
 
 export function SessionTag({ session }: { session: Pick<PlanSession, 'session_type'> }) {
   return <span className={`stag stag-${sessionTone(session.session_type)}`}>{sessionTypeLabel(session.session_type)}</span>
@@ -49,7 +60,11 @@ export function SessionSteps({ steps }: { steps: StructureStep[] }) {
             {step.zone && (
               <div className="step-pace">
                 <span className="step-zone">{zoneLabel(step.zone)}</span>
-                <span className="step-range">{paces ? `${fmtRange(paces[step.zone])} /km` : 'Allure à définir'}</span>
+                {paces ? (
+                  <span className="step-range">{fmtRange(paces[step.zone])} /km</span>
+                ) : (
+                  <span className="step-feel">{ZONE_FEEL[step.zone]}</span>
+                )}
               </div>
             )}
           </li>
@@ -59,20 +74,28 @@ export function SessionSteps({ steps }: { steps: StructureStep[] }) {
   )
 }
 
-/** Ligne de séance dans une liste (plan, semaine). */
+/** Ligne de séance dans une liste (plan) : le jour seulement s'il est fixé. */
 export function SessionRow({ session }: { session: PlanSession }) {
+  const { runs } = useStore()
   const target = sessionTarget(session)
+  const tone = sessionTone(session.session_type)
+  const run = session.run_id ? runs.find((r) => r.id === session.run_id) : undefined
   return (
     <a className={`list-row session-row is-${session.status}`} href={`#/seance/${session.id}`}>
-      <span className={`date-chip tone-${sessionTone(session.session_type)}`}>
-        <span>{fmtWeekday(session.scheduled_on)}</span>
-        <strong>{fromISODate(session.scheduled_on).getDate()}</strong>
-      </span>
+      {session.flexible ? (
+        <span className={`date-chip kind-chip tone-${tone}`}>{SESSION_KIND[tone]}</span>
+      ) : (
+        <span className={`date-chip tone-${tone}`}>
+          <span>{fmtWeekday(session.scheduled_on)}</span>
+          <strong>{fromISODate(session.scheduled_on).getDate()}</strong>
+        </span>
+      )}
       <span className="row-main">
         <span className="row-title">{session.title}</span>
         <span className="row-sub">
-          {sessionTypeLabel(session.session_type)}
-          {target ? `, ${target}` : ''}
+          {run
+            ? `Faite ${fmtDate(run.performed_on).toLowerCase()}`
+            : `${sessionTypeLabel(session.session_type)}${target ? `, ${target}` : ''}`}
           {session.locked ? ', modifiée par toi' : ''}
         </span>
       </span>
