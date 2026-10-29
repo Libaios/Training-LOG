@@ -4,6 +4,8 @@ import type { CoachRequest, FireStatus } from './types'
 
 /** Message affiché après l'envoi, selon ce que la fonction serveur a fait. */
 export const FIRE_TOAST: Record<FireStatus, string> = {
+  answered: 'Le coach a répondu',
+  daily_limit: 'Envoyé, limite du jour atteinte : réponse ce soir',
   fired: 'Envoyé, réponse dans quelques minutes',
   already_running: 'Envoyé, le coach le prend juste après',
   not_configured: 'Envoyé, réponse ce soir',

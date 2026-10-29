@@ -243,6 +243,8 @@ export type CoachFire = {
 
 /** Résultat du lancement du coach à la demande. */
 export type FireStatus =
+  | 'answered'
+  | 'daily_limit'
   | 'fired'
   | 'already_running'
   | 'not_configured'

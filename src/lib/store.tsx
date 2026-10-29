@@ -86,7 +86,7 @@ type Store = Data & {
   saveSession: (patch: SessionPatch, id?: string) => Promise<string>
   setSessionStatus: (id: string, status: SessionStatus) => Promise<void>
   deleteSession: (id: string) => Promise<void>
-  sendCoachRequest: (message: string, sessionId?: string) => Promise<FireStatus>
+  sendCoachRequest: (message: string, sessionId?: string, onSaved?: () => void) => Promise<FireStatus>
   relaunchCoach: () => Promise<FireStatus>
   markNotesRead: (ids: string[]) => Promise<void>
 }
@@ -499,14 +499,19 @@ export function DataProvider({ children }: { children: ReactNode }) {
     [reload],
   )
 
-  /** Enregistre la demande (entraînement ou appli, le coach décide) puis lance le coach tout de suite. */
+  /**
+   * Enregistre la demande (entraînement ou appli, le coach décide), l'affiche, puis attend la réponse du coach
+   * (quelques secondes par l'API ; une demande sur l'appli part à une session plus longue).
+   */
   const sendCoachRequest = useCallback(
-    async (message: string, sessionId?: string): Promise<FireStatus> => {
+    async (message: string, sessionId?: string, onSaved?: () => void): Promise<FireStatus> => {
       const { error: e } = await supabase
         .from('coach_requests')
         .insert({ message: message.trim(), session_id: sessionId ?? null })
       if (e) throw e
-      const status = await fireCoach({})
+      onSaved?.()
+      await reload()
+      const status = await fireCoach({ wait: true })
       await reload()
       return status
     },

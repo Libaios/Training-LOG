@@ -25,7 +25,10 @@ Connexion obligatoire par email et mot de passe ; la session reste ouverte sur l
 ## Coach IA
 
 - **Revue du soir** : tâche programmée tous les jours à 21h43, règles dans `coach/COACH.md`.
-- **À la demande** : l’onglet Coach enregistre la demande puis appelle la fonction Supabase `coach-fire`, qui lance la tâche Claude « Coach semi Madrid : à la demande (API) » (secret `CLAUDE_COACH_TOKEN`). Consignes dans `coach/A_LA_DEMANDE.md` : demandes d’entraînement, et demandes de modification de l’appli (code modifié, vérifié et publié automatiquement).
+- **À la demande** : l’onglet Coach enregistre la demande puis appelle la fonction Supabase `coach-fire` (`supabase/functions/coach-fire/`) et attend sa réponse.
+  - Entraînement : réponse en quelques secondes par l’API Claude (secret `ANTHROPIC_API_KEY`, `api.ts`) avec un dossier de contexte (`dossier.ts`) et des outils bornés pour ajuster le plan ; règles lues dans `coach/COACH.md`. Plafond de 30 questions par jour, journal des appels dans `coach_api_log`.
+  - Modification de l’appli (ou refonte complète du plan) : `handler = 'session'`, la fonction lance la tâche Claude Code « à la demande » (secrets `CLAUDE_COACH_TOKEN`, `CLAUDE_COACH_FIRE_URL`). Consignes dans `coach/A_LA_DEMANDE.md` (code modifié, vérifié et publié automatiquement).
+  - Relance chaque minute côté serveur tant qu’un message attend : `setup/relance-coach.sql`.
 
 ## Mise en place
 

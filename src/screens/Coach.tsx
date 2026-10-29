@@ -18,6 +18,8 @@ const dtf = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'short', h
 const when = (iso: string) => dtf.format(new Date(iso))
 
 const PAGE = 8
+/** La dernière demande reste ouverte 10 min : la réponse s'affiche sans avoir à la chercher. */
+const RECENT_MS = 10 * 60 * 1000
 
 const shorten = (text: string, max = 60) => {
   const flat = text.replace(/\s+/g, ' ').trim()
@@ -25,7 +27,7 @@ const shorten = (text: string, max = 60) => {
 }
 
 /** Une demande : son titre en une ligne, le détail (ton message et la réponse) en l'ouvrant. */
-function RequestRow({ r }: { r: CoachRequest }) {
+function RequestRow({ r, open }: { r: CoachRequest; open?: boolean }) {
   const { sessionById, coachFires } = useStore()
   const live = coachFires.find((f) => f.status === 'ok' && f.session_url)
   const session = r.session_id ? sessionById.get(r.session_id) : undefined
@@ -33,7 +35,7 @@ function RequestRow({ r }: { r: CoachRequest }) {
   const message = stripSessionPrefix(r.message)
   return (
     <li>
-      <details className="recap-row">
+      <details className="recap-row" open={open}>
         <summary>
           <span className="row-main">
             <span className="row-title">{r.summary ?? shorten(message)}</span>
@@ -119,8 +121,7 @@ export function Coach() {
     if (!message.trim()) return
     setBusy(true)
     try {
-      const status = await sendCoachRequest(message)
-      setMessage('')
+      const status = await sendCoachRequest(message, undefined, () => setMessage(''))
       toast(FIRE_TOAST[status])
     } catch (err) {
       toast(errorMessage(err), 'error')
@@ -147,8 +148,8 @@ export function Coach() {
         <section className="section">
           <h2>Tes demandes</h2>
           <ul className="list compact">
-            {coachRequests.slice(0, shownRequests).map((r) => (
-              <RequestRow key={r.id} r={r} />
+            {coachRequests.slice(0, shownRequests).map((r, i) => (
+              <RequestRow key={r.id} r={r} open={i === 0 && Date.now() - new Date(r.created_at).getTime() < RECENT_MS} />
             ))}
           </ul>
           {coachRequests.length > shownRequests && (

@@ -20,9 +20,10 @@ export function SessionComments({ session, limit = 3 }: { session: PlanSession; 
     if (!text.trim()) return
     setBusy(true)
     try {
-      const status = await sendCoachRequest(`Sur la séance « ${session.title} » : ${text.trim()}`, session.id)
-      setText('')
-      setOpen(false)
+      const status = await sendCoachRequest(`Sur la séance « ${session.title} » : ${text.trim()}`, session.id, () => {
+        setText('')
+        setOpen(false)
+      })
       toast(FIRE_TOAST[status])
     } catch (err) {
       toast(errorMessage(err), 'error')
