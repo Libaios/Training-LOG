@@ -28,7 +28,7 @@ function distanceLabel(km: number): string {
 }
 
 function LevelCard() {
-  const { vdot, paces, predictedRaceSec, profile } = useCoach()
+  const { vdot, paces, predictedRaceSec, profile, estimated } = useCoach()
   if (!vdot || !paces || !profile) {
     return (
       <section className="level-card">
@@ -42,7 +42,7 @@ function LevelCard() {
     <section className="level-card">
       <div className="level-figures">
         <div>
-          <span className="muted">Semi prédit aujourd’hui</span>
+          <span className="muted">{estimated ? 'Semi estimé aujourd’hui' : 'Semi prédit aujourd’hui'}</span>
           <strong>{predictedRaceSec ? fmtClock(predictedRaceSec) : '–'}</strong>
         </div>
         <div>
@@ -73,7 +73,11 @@ function LevelCard() {
           ))}
         </tbody>
       </table>
-      <p className="muted chart-note">En min/km. Indice VDOT {fmt1(vdot)} (méthode Daniels), mis à jour automatiquement avec tes dernières courses et sorties à fond (90 derniers jours).</p>
+      <p className="muted chart-note">
+        {estimated
+          ? `En min/km. Estimées d’après tes sorties des 4 derniers mois (indice VDOT ${fmt1(vdot)}, méthode Daniels). Elles ne sont pas courues à fond : ces allures sont prudentes. Note une course ou une sortie à fond (ressenti 8/10 ou plus) pour les affiner.`
+          : `En min/km. Indice VDOT ${fmt1(vdot)} (méthode Daniels), mis à jour automatiquement avec tes dernières courses et sorties à fond (90 derniers jours).`}
+      </p>
     </section>
   )
 }

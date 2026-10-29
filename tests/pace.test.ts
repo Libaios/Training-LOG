@@ -27,4 +27,14 @@ assert.equal(ref?.perf.performed_on, '2026-09-15', 'meilleure perf récente, l�
 const old = referenceVdot([perf('2025-01-10', 10, 45 * 60), perf('2025-06-01', 10, 50 * 60)], '2026-10-29')
 assert.equal(old?.perf.performed_on, '2025-06-01', 'sans perf récente : la plus récente')
 
+
+// Sans chrono : niveau estimé d'après les sorties récentes (2 km et plus, 120 jours).
+{
+  const { estimatedVdot } = await import('../src/lib/recap')
+  const run = (d: string, km: number, s: number) => ({ performed_on: d, distance_km: km, duration_sec: s }) as never
+  near(estimatedVdot([run('2026-09-30', 2.63, 760), run('2026-10-16', 3.01, 954)], '2026-10-29')!, 38.2, 0.2, 'meilleure sortie récente')
+  assert.equal(estimatedVdot([run('2026-05-01', 10, 2400)], '2026-10-29'), null, 'sortie trop ancienne ignorée')
+  assert.equal(estimatedVdot([run('2026-10-20', 1.5, 400)], '2026-10-29'), null, 'sortie trop courte ignorée')
+}
+
 console.log('pace : tous les tests passent')

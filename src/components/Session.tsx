@@ -60,11 +60,8 @@ export function SessionSteps({ steps }: { steps: StructureStep[] }) {
             {step.zone && (
               <div className="step-pace">
                 <span className="step-zone">{zoneLabel(step.zone)}</span>
-                {paces ? (
-                  <span className="step-range">{fmtRange(paces[step.zone])} /km</span>
-                ) : (
-                  <span className="step-feel">{ZONE_FEEL[step.zone]}</span>
-                )}
+                {paces && <span className="step-range">{fmtRange(paces[step.zone])} /km</span>}
+                <span className={paces ? 'step-feel-sub' : 'step-feel'}>{ZONE_FEEL[step.zone]}</span>
               </div>
             )}
           </li>

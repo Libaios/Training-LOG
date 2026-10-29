@@ -2326,6 +2326,12 @@ body:has(.save-bar) .toast-region {
   max-width: 130px;
 }
 
+.step-feel-sub {
+  font-size: 13px;
+  color: var(--muted);
+  max-width: 150px;
+}
+
 .step-S .step-feel,
 .step-T .step-feel,
 .step-I .step-feel,

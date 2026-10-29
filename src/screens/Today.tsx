@@ -63,7 +63,7 @@ function WeekSession({ session }: { session: PlanSession }) {
 
 export function Today() {
   const { profile, plan, runs, coachNotes, performances } = useStore()
-  const { paces } = useCoach()
+  const { paces, estimated } = useCoach()
   const today = todayISO()
   const monday = weekStart(today)
   const nextMonday = addDays(monday, 7)
@@ -154,10 +154,10 @@ export function Today() {
                 ))}
               </ul>
             )}
-            {!paces && (
+            {(!paces || estimated) && (
               <p className="muted week-sub">
-                Allures au ressenti pour l’instant. <a href="#/profil">Ajoute un chrono récent</a> pour avoir des allures en
-                min/km.
+                {paces ? 'Allures estimées d’après tes dernières sorties, plutôt prudentes.' : 'Allures au ressenti pour l’instant.'}{' '}
+                <a href="#/profil">Ajoute un chrono récent</a> pour les {paces ? 'affiner' : 'avoir en min/km'}.
               </p>
             )}
             {next && (

@@ -1,4 +1,5 @@
 import { addDays, paceOf, todayISO } from './format'
+import { vdotOf } from './pace'
 import type { Performance, Run } from './types'
 
 export type RunRecap = {
@@ -41,4 +42,19 @@ export function effortPerfs(runs: Run[]): Performance[] {
       kind: r.run_type === 'course' ? ('course' as const) : ('entrainement' as const),
       notes: null,
     }))
+}
+
+/**
+ * Sans chrono de référence : niveau estimé d'après les sorties des 4 derniers mois (2 km et plus).
+ * Ces sorties ne sont pas courues à fond : l'estimation est prudente (allures plutôt lentes).
+ */
+export function estimatedVdot(runs: Run[], today = todayISO()): number | null {
+  const since = addDays(today, -120)
+  let best: number | null = null
+  for (const r of runs) {
+    if (r.performed_on < since || r.performed_on > today || r.distance_km < 2 || r.duration_sec < 480) continue
+    const v = vdotOf(r.distance_km, r.duration_sec)
+    if (Number.isFinite(v) && v >= 20 && v <= 85 && (best === null || v > best)) best = v
+  }
+  return best
 }

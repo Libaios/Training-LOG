@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { useStore } from './store'
-import { effortPerfs } from './recap'
+import { effortPerfs, estimatedVdot } from './recap'
 import { pacesFor, predictTime, referenceVdot, type Paces, type PaceRange } from './pace'
 import { addDays, fmtPace, fromISODate, todayISO, weekStart } from './format'
 import type { PlanSession, RunnerProfile } from './types'
@@ -13,6 +13,8 @@ export type CoachContext = {
   vdot: number | null
   paces: Paces | null
   predictedRaceSec: number | null
+  /** true : pas de chrono, niveau estimé d'après les sorties (prudent). */
+  estimated: boolean
 }
 
 /** Niveau actuel et allures, recalculés dès qu'une perf ou l'objectif change. */
@@ -20,12 +22,14 @@ export function useCoach(): CoachContext {
   const { profile, performances, runs } = useStore()
   return useMemo(() => {
     const ref = referenceVdot([...performances, ...effortPerfs(runs)])
-    if (!ref) return { profile, vdot: null, paces: null, predictedRaceSec: null }
+    const vdot = ref?.vdot ?? estimatedVdot(runs)
+    if (vdot === null) return { profile, vdot: null, paces: null, predictedRaceSec: null, estimated: false }
     return {
       profile,
-      vdot: ref.vdot,
-      paces: pacesFor(ref.vdot, profile),
-      predictedRaceSec: predictTime(ref.vdot, profile?.race_distance_km ?? 21.0975),
+      vdot,
+      paces: pacesFor(vdot, profile),
+      predictedRaceSec: predictTime(vdot, profile?.race_distance_km ?? 21.0975),
+      estimated: !ref,
     }
   }, [profile, performances, runs])
 }

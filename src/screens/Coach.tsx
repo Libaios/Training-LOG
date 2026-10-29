@@ -17,14 +17,6 @@ const KIND_LABEL = {
 const dtf = new Intl.DateTimeFormat('fr-FR', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
 const when = (iso: string) => dtf.format(new Date(iso))
 
-const SUGGESTIONS = [
-  'Je pars en déplacement la semaine prochaine, adapte',
-  'J’ai une petite douleur au mollet',
-  'Je me sens en forme, on peut monter un peu',
-  'Mets la partie course en vert au lieu du rouge',
-  'Ajoute sur l’accueil le total de km du mois',
-]
-
 const FIRE_TOAST: Record<FireStatus, string> = {
   fired: 'Le coach s’en occupe : réponse dans quelques minutes',
   already_running: 'Le coach est déjà au travail, il traite aussi ce message',
@@ -123,15 +115,6 @@ export function Coach() {
             onChange={(e) => setMessage(e.target.value)}
           />
         </label>
-        {!message && (
-          <div className="chips">
-            {SUGGESTIONS.map((s) => (
-              <button key={s} type="button" className="chip chip-small" onClick={() => setMessage(s)}>
-                {s}
-              </button>
-            ))}
-          </div>
-        )}
         <button type="submit" className="btn btn-primary" disabled={busy || !message.trim()}>
           Envoyer
         </button>
