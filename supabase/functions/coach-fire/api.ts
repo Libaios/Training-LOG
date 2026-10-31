@@ -5,7 +5,9 @@
 // la session longue (abonnement Claude, pas les crédits API). Au-delà de 80 % du budget du mois, Haiku prend le relais.
 // Secret Supabase : ANTHROPIC_API_KEY. Facultatif : COACH_MODEL, COACH_EFFORT, COACH_DAILY_LIMIT, COACH_MONTHLY_BUDGET_USD.
 import {
+  addDays,
   buildDossier,
+  daysBetween,
   isIsoDate,
   parisMidnightUtc,
   SESSION_COLUMNS,
@@ -113,10 +115,11 @@ Ton : tutoiement, phrases courtes, concret (chiffres, semaines, allures cibles d
 Comment traiter le message
 1. Relis les derniers échanges : un message est souvent la suite du précédent (« oui vas-y »).
 2. Écrit depuis une séance (« Sur la séance « … » : ») : réponds sur cette séance. Tu peux la modifier même si elle est verrouillée : son commentaire vaut accord.
-3. Si le message le justifie, ajuste les séances à venir avec les outils (jamais une séance faite, passée ou verrouillée, sauf la séance commentée ; une séance passée non faite peut seulement passer en « sautée » si le message le dit). Consigne courte (coach_comment) sur chaque séance changée.
+3. Si le message le justifie, ajuste les séances à venir avec les outils (jamais une séance faite, ni le contenu d’une séance passée ou verrouillée, sauf la séance commentée ; une séance passée ou verrouillée peut seulement changer de statut et de consigne). Consigne courte (coach_comment) sur chaque séance changée.
+3 bis. Ce que dit ta réponse doit se voir dans l’appli. Sortie liée à la mauvaise séance (« c’était celle-là ma course avec mon ami ») : relie-la à la bonne avec lier_sortie. Une séance qui ne se fera plus (doublon, remplacée par une autre sortie) passe en sautée avec une consigne qui dit pourquoi, même si elle est verrouillée.
 4. Plan changé : une seule note dans repondre, 2 à 4 lignes, ce qui a changé et pourquoi.
 5. Termine toujours par repondre : 1 à 3 phrases (5 au plus si la question l’exige), un seul paragraphe, sans markdown ni liste ni tiret cadratin, et un titre de 3 à 7 mots (la demande et son issue).
-6. Objectif de temps ou séances par semaine : seulement sur demande claire (modifier_profil). Jamais de changement de sortie ni de perf.
+6. Objectif de temps ou séances par semaine : seulement sur demande claire (modifier_profil). Jamais de changement de sortie (sauf la séance liée, avec lier_sortie) ni de perf.
 7. Tu traites toi-même ce qui est rapide : une question sur une séance ou une allure, un doute, la motivation, un petit ajustement d’une ou deux séances, une douleur (réponse prudente tout de suite).
 8. Appelle confier_a_la_session_longue, sans rien modifier ni répondre, dès qu’il faut vraiment réfléchir : changer plus de deux séances ou une semaine entière, revoir l’objectif ou la structure du plan, analyser la progression en détail, question en plusieurs parties, ou message qui parle, même en partie, de l’appli elle-même (écran, affichage, bouton, bug, nouvelle fonction). Une session plus longue répond dans les minutes qui suivent.
 Ne renvoie jamais le coureur vers une autre conversation ou un autre outil.`
@@ -209,6 +212,20 @@ const TOOLS = [
     name: 'supprimer_seances',
     description: 'Supprime des séances à venir (non faites, non verrouillées). Pour une séance que le coureur ne fera pas, préfère statut = sautee.',
     input_schema: { type: 'object', properties: { ids: { type: 'array', items: { type: 'string' } } }, required: ['ids'] },
+  },
+  {
+    name: 'lier_sortie',
+    description:
+      'Relie une sortie récente (id de la liste des sorties) à la séance qu’elle a remplacée, quand le coureur le dit ou que c’est évident. La séance passe « faite » ; celle qui était liée avant redevient « prévue », ou « sautée » si elle ne se fera plus. seance_id vide : la sortie redevient hors plan. Ne change rien d’autre à la sortie.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        sortie_id: { type: 'string' },
+        seance_id: { type: 'string', description: 'séance à lier ; vide pour hors plan' },
+        ancienne_seance: { type: 'string', enum: ['prevue', 'sautee'], description: 'statut de la séance liée jusqu’ici (défaut prevue)' },
+      },
+      required: ['sortie_id'],
+    },
   },
   {
     name: 'modifier_profil',
@@ -362,7 +379,10 @@ async function runTool(ctx: Ctx, name: string, input: Record<string, unknown>): 
       try {
         if (!s) throw new ToolError('séance introuvable')
         if (s.status === 'faite') throw new ToolError('déjà faite')
-        if (s.locked && s.id !== ctx.request.session_id) throw new ToolError('verrouillée par le coureur')
+        // Séance verrouillée (modifiée par le coureur) : son contenu ne change pas, son statut et sa consigne si.
+        const statusOnly = Object.keys(c).every((k) => ['id', 'statut', 'coach_comment'].includes(k))
+        if (s.locked && s.id !== ctx.request.session_id && !statusOnly)
+          throw new ToolError('verrouillée par le coureur : seuls statut et coach_comment peuvent changer')
         const patch: Record<string, unknown> = {}
         if (!isFuture(ctx, s)) {
           if (c.statut !== 'sautee' || Object.keys(c).some((k) => !['id', 'statut', 'coach_comment'].includes(k)))
@@ -455,6 +475,37 @@ async function runTool(ctx: Ctx, name: string, input: Record<string, unknown>): 
     return [ok.length ? `Supprimées : ${ok.map((id) => `« ${byId.get(id)!.title} »`).join(', ')}.` : '', refused.length ? `Refusées : ${refused.join(' ; ')}.` : '']
       .filter(Boolean)
       .join(' ')
+  }
+
+  if (name === 'lier_sortie') {
+    const runId = String(input.sortie_id ?? '')
+    const sessionId = input.seance_id ? String(input.seance_id) : null
+    const { data: run, error } = await db.from('runs').select('id,performed_on,planned_session_id').eq('id', runId).maybeSingle()
+    if (error) throw new Error(error.message)
+    if (!run) throw new ToolError('sortie introuvable')
+    if (run.performed_on < addDays(ctx.today, -21)) throw new ToolError('sortie de plus de 3 semaines : laisse-la')
+    let target: Session | undefined
+    if (sessionId) {
+      target = (await loadSessions(ctx, [sessionId])).get(sessionId)
+      if (!target) throw new ToolError('séance introuvable')
+      if (target.run_id && target.run_id !== runId) throw new ToolError('séance déjà liée à une autre sortie')
+      if (Math.abs(daysBetween(run.performed_on, target.scheduled_on)) > 13) throw new ToolError('séance trop éloignée de la date de la sortie')
+    }
+    const old: string | null = run.planned_session_id
+    if (old === sessionId) return 'Déjà liée à cette séance.'
+    const oldStatus = input.ancienne_seance === 'sautee' ? 'sautee' : 'prevue'
+    const r1 = await db.from('runs').update({ planned_session_id: sessionId }).eq('id', runId)
+    if (r1.error) throw new Error(r1.error.message)
+    if (old) {
+      const r2 = await db.from('plan_sessions').update({ status: oldStatus, run_id: null }).eq('id', old)
+      if (r2.error) throw new Error(r2.error.message)
+    }
+    if (sessionId) {
+      const r3 = await db.from('plan_sessions').update({ status: 'faite', run_id: runId }).eq('id', sessionId)
+      if (r3.error) throw new Error(r3.error.message)
+    }
+    ctx.changed = true
+    return `${target ? `Sortie liée à « ${target.title} » (faite).` : 'Sortie passée hors plan.'}${old ? ` L’ancienne séance est ${oldStatus === 'sautee' ? 'sautée' : 'de nouveau prévue'}.` : ''}`
   }
 
   if (name === 'modifier_profil') {

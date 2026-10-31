@@ -289,13 +289,13 @@ export async function buildDossier(db: Db, opts: { excludeRequestIds?: string[] 
   out.push(perfs.length ? perfs.map((x) => `- ${x.performed_on} ${km(x.distance_km)} en ${fmtDuration(x.time_sec)} (${x.kind})${x.notes ? `, ${x.notes}` : ''}`).join('\n') : 'Aucune.')
 
   const recentRuns = runs.filter((r) => r.performed_on >= addDays(today, -28))
-  out.push('', '## Sorties des 4 dernières semaines (plus récentes d’abord)')
+  out.push('', '## Sorties des 4 dernières semaines (plus récentes d’abord, id entre crochets)')
   out.push(
     recentRuns.length
       ? recentRuns
           .map((r) => {
             const linked = r.planned_session_id ? sessions.find((s) => s.id === r.planned_session_id) : undefined
-            return `- ${runText(r)}${linked ? ` ; séance « ${linked.title} »` : r.planned_session_id ? ' ; liée à une séance' : ' ; hors plan'}`
+            return `- [${r.id}] ${runText(r)}${linked ? ` ; séance « ${linked.title} »` : r.planned_session_id ? ' ; liée à une séance' : ' ; hors plan'}`
           })
           .join('\n')
       : 'Aucune.',

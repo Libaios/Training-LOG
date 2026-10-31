@@ -35,7 +35,7 @@ Lis `coach/COACH.md` et suis ses sections 2, 4 et 5 (ton : un vrai coach exigean
 - si le plan change, écris une seule note `reprogrammation` dans `coach_notes` qui explique les changements ;
 - **écris les changements du plan, la note et la réponse (`response`, `summary`, `status = 'traitee'`, `handled_at`) dans une seule requête `execute_sql`** (instructions séparées par des points-virgules, entre `begin;` et `commit;`) : si la session s’arrête en route, rien ne reste à moitié fait ;
 - tiens compte des sorties enregistrées depuis `runner_profile.last_coach_review_at`, sans mettre à jour `last_coach_review_at` et sans écrire la note du soir (c’est le rôle de la revue du soir) ;
-- ne modifie jamais une séance passée (sauf pour la passer en `sautee` si le message le dit), une séance `locked`, une sortie ou une perf, ni l’objectif de temps sans que le message le demande ;
+- ne modifie jamais une séance passée (sauf pour la passer en `sautee` si le message le dit), le contenu d’une séance `locked` (son statut et sa consigne peuvent changer), une sortie (sauf la séance à laquelle elle est liée, voir `runs` dans `COACH.md`) ou une perf, ni l’objectif de temps sans que le message le demande ; ce que dit ta réponse doit se voir dans l’appli ;
 - séances à jour libre : `flexible = true`, `scheduled_on` = dimanche de la semaine (voir `COACH.md`) ; n’impose jamais de jour ;
 - n’utilise jamais un connecteur Strava ou un autre compte sportif branché à cette session : ce n’est pas celui du coureur ;
 - douleur qui dure : conseille un avis médical.
